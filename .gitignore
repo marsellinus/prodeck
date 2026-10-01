@@ -37,6 +37,11 @@ config.json
 # scripts/dev-host.ps1.
 .devdata/
 
+# Config directory bind-mounted into the optional agent container by
+# docker-compose.yml (./data:/data). Machine-local runtime state, never
+# committed.
+data/
+
 # --- Editor and OS noise -----------------------------------------------------
 .idea/
 .vscode/

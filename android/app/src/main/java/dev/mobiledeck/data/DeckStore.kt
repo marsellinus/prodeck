@@ -177,7 +177,9 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
 
     init {
         // A previously paired device reconnects on launch without a tap; that
-        // is the whole point of storing the token.
+        // is the whole point of storing the token. With one slot per host this
+        // picks the most recently written one, which is the host the user was
+        // last on.
         secureStore.load()?.let { stored ->
             bundle = stored
             _state.update {
@@ -299,8 +301,12 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
     fun forgetHost() {
         val id = bundle?.hostId ?: _state.value.hostId
         disconnect()
-        if (id.isNotBlank()) cache.clear(id)
-        secureStore.clear()
+        if (id.isNotBlank()) {
+            cache.clear(id)
+            secureStore.forget(id)
+        } else {
+            secureStore.clear()
+        }
         bundle = null
         lastHost = null
         _state.update {
@@ -706,7 +712,12 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
             CloseCode.UNAUTHENTICATED -> {
                 // §2.5: wipe the token and return to pairing. The host identity
                 // and the cached profile stay, so re-pairing is one PIN away.
-                secureStore.clear()
+                //
+                // Only this host's token is dropped. Clearing every slot would
+                // make a revocation on one machine silently sign the user out of
+                // all the others.
+                val id = bundle?.hostId ?: _state.value.hostId
+                if (id.isNotBlank()) secureStore.forget(id) else secureStore.clear()
                 bundle = null
                 _state.update {
                     it.copy(

@@ -150,6 +150,11 @@ protocol; the editor does not.
   `internal/profile`.
 - Profile import/export as JSON, including the `profiles.write` scope path.
 - Multiple paired devices with per-device scopes and names.
+  **Done** (Milestone 1): several devices connect at once, each with its own
+  record, token and scope set; `mobiledeck devices` lists, renames, enables,
+  disables, revokes and re-scopes them; `session.max_clients` (default 16) caps
+  concurrent sessions and refuses past it with HTTP 503 before the upgrade.
+  Documented in [`MULTI_DEVICE.md`](MULTI_DEVICE.md).
 - Advanced permission editing: per-device scope changes, `bind_ip`, and the
   `require_confirmation` flow surfaced in the client.
 - QR-assisted pairing (`GET /api/v1/pair/qr` is reserved in PROTOCOL.md §3.1).
@@ -184,6 +189,13 @@ the project is fully usable without it.
 - **Flatpak packaging** for Linux desktop distribution.
 - **Auto-update** for the host binary.
 - **Packaging**: `.deb`, `.tar.gz`, and an installer, per ADR-0009.
+  **Docker packaging done** (Milestone 1): `host/Dockerfile` is a multi-stage
+  build producing a static binary on `debian:bookworm-slim`, running as the
+  unprivileged user `mobiledeck`; the `agent` service in `docker-compose.yml`
+  runs it with `network_mode: host`. It covers only the subset of actions that
+  do not need the desktop session. Documented in
+  [`DEPLOYMENT.md`](DEPLOYMENT.md) §4. The native packages (`.deb`, `.tar.gz`,
+  installer) remain deferred.
 - **Plugin marketplace / repository** — **optional**. Without it, plugins are
   directories copied into `plugins/`.
 - **Cloud sync** — **optional, and never required**. The host must work with no

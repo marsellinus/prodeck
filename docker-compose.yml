@@ -1,18 +1,50 @@
 # =============================================================================
-# DOCUMENTATION AND DEVELOPER TOOLING ONLY.
+# DOCUMENTATION, DEVELOPER TOOLING, AND AN OPTIONAL AGENT CONTAINER.
 #
 # The MobileDeck host agent NEVER requires Docker. It is one static binary and
-# runs directly:
+# running it natively is the supported path:
 #
 #     cd host && go run ./cmd/mobiledeck run        # or ./mobiledeck run
 #
-# Docker appears here only to serve the docs and to give a reproducible build
-# shell. Do not add a runtime service for the agent: a container cannot drive
-# the host's keyboard, mouse, or X11 session without --privileged and socket
-# mounts, which is worse than not using Docker at all (ADR-0009).
+# A container cannot drive the host's keyboard, mouse, or X11 session without
+# --privileged and socket mounts, which is worse than not using Docker at all
+# (ADR-0009, docs/SECURITY.md §4). The `agent` service below is therefore only
+# useful for the subset of actions that do not touch the desktop session; see
+# docs/DEPLOYMENT.md for the exact split.
 # =============================================================================
 
 services:
+  # The agent in a container. Optional; the native binary is the supported
+  # deployment for input control.
+  #
+  #   docker compose up -d agent
+  #
+  # network_mode: host is required, not a convenience. Two things break on the
+  # default bridge network:
+  #   * mDNS discovery: the phone's multicast browse never reaches the
+  #     container, so the host does not show up in the client's list;
+  #   * LAN reachability: the port is advertised over mDNS as the host's own
+  #     port, but a bridged container's port lives on the docker0 address, so
+  #     the advertised address would not answer.
+  # With host networking the agent binds the host's port 8765 directly and
+  # advertises the host's real address. This makes the service Linux-only: on
+  # Docker Desktop for Windows/macOS "host" networking does not mean the host's
+  # LAN interface, and the agent should be run natively there instead.
+  #
+  # The config directory is bind-mounted so profiles, devices.json, audit.jsonl
+  # and the TLS material survive a container rebuild. ./data is gitignored;
+  # devices.json and audit.jsonl are secrets (docs/SECURITY.md §6).
+  agent:
+    build:
+      context: ./host
+      dockerfile: Dockerfile
+    image: mobiledeck/agent:dev
+    container_name: mobiledeck-agent
+    network_mode: host
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
   # Static HTTP server for docs/. Read-only mount: this service must never be
   # able to write to the repository.
   #

@@ -63,10 +63,16 @@ class SecureStore(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     /**
-     * Encrypts [bundle] and stores it, replacing any previous value.
+     * Encrypts [bundle] and stores it under its host's id, replacing that host's
+     * previous value.
      *
-     * The old ciphertext is overwritten rather than kept: a stale token is a
-     * credential the user believes they revoked.
+     * One slot per host, not one slot total. A single slot meant that pairing
+     * with a second machine silently destroyed the credential for the first, so
+     * a user with a laptop and a desktop had to re-pair every time they switched.
+     * The host id is in the bundle and is stable, which makes it the natural key.
+     *
+     * The old ciphertext for that host is overwritten rather than kept: a stale
+     * token is a credential the user believes they revoked.
      */
     fun save(bundle: TokenBundle) {
         val plaintext = ProtocolJson.encodeToString(TokenBundle.serializer(), bundle).toByteArray(Charsets.UTF_8)
@@ -78,13 +84,21 @@ class SecureStore(context: Context) {
         // anything, and blocking the main thread on a disk write to persist a
         // credential is a worse trade than losing it on a crash before flush.
         prefs.edit {
-            putString(KEY_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-            putString(KEY_CIPHERTEXT, Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+            putString(ivKey(bundle.hostId), Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+            putString(ctKey(bundle.hostId), Base64.encodeToString(ciphertext, Base64.NO_WRAP))
         }
     }
 
+    /** The hosts this device holds a token for, newest first. */
+    fun hosts(): List<String> =
+        prefs.all.keys
+            .filter { it.startsWith(CT_PREFIX) }
+            .map { it.removePrefix(CT_PREFIX) }
+            .sorted()
+
     /**
-     * Decrypts the stored bundle, or null when there is none.
+     * Decrypts the bundle stored for [hostId], or the most recently written one
+     * when [hostId] is null.
      *
      * A blob that fails to decrypt (key invalidated by a device credential
      * change, or corrupt) is cleared and reported as absent. The alternative —
@@ -92,9 +106,10 @@ class SecureStore(context: Context) {
      * clearing app data, and a token the client cannot read is worthless
      * anyway, so the honest answer is "pair again".
      */
-    fun load(): TokenBundle? {
-        val ivB64 = prefs.getString(KEY_IV, null) ?: return null
-        val ctB64 = prefs.getString(KEY_CIPHERTEXT, null) ?: return null
+    fun load(hostId: String? = null): TokenBundle? {
+        val id = hostId ?: hosts().firstOrNull() ?: return null
+        val ivB64 = prefs.getString(ivKey(id), null) ?: return null
+        val ctB64 = prefs.getString(ctKey(id), null) ?: return null
 
         return try {
             val iv = Base64.decode(ivB64, Base64.NO_WRAP)
@@ -104,17 +119,27 @@ class SecureStore(context: Context) {
             val plaintext = cipher.doFinal(ciphertext)
             ProtocolJson.decodeFromString(TokenBundle.serializer(), String(plaintext, Charsets.UTF_8))
         } catch (_: Exception) {
-            clear()
+            forget(id)
             null
         }
     }
 
-    /** Removes the stored token. The keystore entry is deliberately kept. */
-    fun clear() {
+    /** Removes the token for one host. The keystore entry is deliberately kept. */
+    fun forget(hostId: String) {
         prefs.edit {
-            remove(KEY_IV)
-            remove(KEY_CIPHERTEXT)
+            remove(ivKey(hostId))
+            remove(ctKey(hostId))
         }
+    }
+
+    /**
+     * Removes every stored token.
+     *
+     * The prefs file is small and holds only credentials, so clearing it whole is
+     * simpler than enumerating, and it cannot leave an orphan behind.
+     */
+    fun clear() {
+        prefs.edit { clear() }
     }
 
     /**
@@ -154,7 +179,18 @@ class SecureStore(context: Context) {
         const val GCM_TAG_BITS = 128
 
         const val PREFS_NAME = "mobiledeck.secure"
-        const val KEY_IV = "token_iv"
-        const val KEY_CIPHERTEXT = "token_ct"
+
+        /**
+         * One slot per host, keyed by the host id.
+         *
+         * The id is a hex string from the host, so it is safe in a preference
+         * key; it is still prefixed to keep the namespace obvious in a dump of
+         * the file, and so a future non-token preference cannot collide with it.
+         */
+        const val IV_PREFIX = "token_iv."
+        const val CT_PREFIX = "token_ct."
+
+        fun ivKey(hostId: String) = IV_PREFIX + hostId
+        fun ctKey(hostId: String) = CT_PREFIX + hostId
     }
 }

@@ -280,9 +280,11 @@ mDNS responder and the action engine. Core functionality needs nothing but a LAN
 
 - No account, no sign-in, no telemetry to anyone but your own phone.
 - No Docker required. `docker-compose.yml` exists for documentation and
-  reproducible builds only; the agent never runs inside a container, because a
-  container cannot drive your desktop session's keyboard without giving it more
-  privilege than running it natively.
+  reproducible builds, and for an *optional* agent container that covers only the
+  actions that do not need the desktop session. The agent is never designed to
+  run in a container for input control: a container cannot drive your desktop
+  session's keyboard without more privilege than running it natively
+  (`docs/DEPLOYMENT.md` §4).
 - Internet is only ever useful for updates and reading these docs.
 
 ## Layout
@@ -320,6 +322,8 @@ which operating system it runs on.** Porting to a new OS means adding files unde
 | [`docs/PLUGIN_DEVELOPMENT.md`](docs/PLUGIN_DEVELOPMENT.md) | Writing a plugin (Phase 3) |
 | [`docs/GUI.md`](docs/GUI.md) | The desktop control panel and the layout editor |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Building and running from source |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Installing and running: native, systemd user unit, Windows logon, optional Docker |
+| [`docs/MULTI_DEVICE.md`](docs/MULTI_DEVICE.md) | Several phones at once: per-device scopes, revoke vs disable, worked example |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | The five phases and what each one owes |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | The rules enforced at review |
 

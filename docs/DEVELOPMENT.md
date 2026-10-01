@@ -49,6 +49,22 @@ CGO_ENABLED=0 go build -trimpath -o mobiledeck ./cmd/mobiledeck
 `CGO_ENABLED=0` keeps cross-compilation working
 (`GOOS=windows|linux|darwin go build`), per ADR-0001.
 
+### 2.1 Docker
+
+The agent never requires Docker; running the binary natively is the supported
+path. There is an optional container image for the subset of actions that do not
+touch the desktop session (`host/Dockerfile`, the `agent` service in
+`docker-compose.yml`). Building, running, and the exact list of what does and
+does not work in a container are in
+[`docs/DEPLOYMENT.md`](DEPLOYMENT.md) §4.
+
+### 2.2 Multi-device
+
+Several phones may connect at once, each with its own device record, token and
+scope set. Per-device scopes, the concurrent-client cap, revoke vs disable, and
+a worked two-phone example are in
+[`docs/MULTI_DEVICE.md`](MULTI_DEVICE.md).
+
 ---
 
 ## 3. Android client (Kotlin + Compose)
@@ -119,7 +135,7 @@ The host stores `config.json`, `devices.json`, `audit.jsonl`, `profiles/`,
 Override it for a throwaway instance:
 
 ```sh
-go run ./cmd/mobiledeck --config-dir ./.devdata run
+go run ./cmd/mobiledeck run --config-dir ./.devdata
 ```
 
 `scripts/dev-host.sh` and `scripts/dev-host.ps1` do exactly this, with
@@ -142,16 +158,23 @@ mobiledeck keys      List the canonical key names accepted by profiles.
 mobiledeck version   Print the agent version and protocol range.
 ```
 
-Flags are accepted before the subcommand. The documented ones are:
+Flags are accepted after the subcommand. The documented ones are:
 
 | Flag | Effect |
 |------|--------|
 | `--config-dir <path>` | Use this directory instead of the per-user config directory. |
+| `--config <path>` | Use this configuration file (default `<config-dir>/config.json`). |
 | `--bind <addr>` | Listen address. `0.0.0.0` (default) exposes the LAN; `127.0.0.1` is loopback only. |
+| `--port <n>` | TCP port to listen on (default 8765; `0` asks the OS for a free one). |
+| `--name <name>` | Host name shown to clients during discovery and pairing. |
+| `--log-level <level>` | `debug`, `info`, `warn` or `error`. |
+| `--log-format <fmt>` | `text` or `json`. |
+| `--no-tls` | Disable TLS (only sensible when bound to loopback). |
 | `--insecure-allow-plaintext` | Permit pairing over an unencrypted LAN socket. Off by default; see SECURITY.md §5. |
 | `--allow-absolute-paths` | Let `run_script`/`open_folder` reference paths outside the profile and `scripts/` directories. Off by default. |
-| `--max-clients <n>` | Maximum concurrent WebSocket sessions (default 16). |
-| `--max-concurrent-actions <n>` | Action worker pool size (default 8). |
+
+Concurrency limits are not flags: set `session.max_clients` (default 16) and
+`engine.max_concurrent_actions` (default 8) in `config.json`.
 
 `mobiledeck keys` is backed by `platform.KeyNames()`, so it always lists exactly
 the keys the key table accepts.

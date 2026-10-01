@@ -54,7 +54,7 @@ host, a malicious Android OS, and supply-chain compromise of Go/Maven dependenci
 | T9 | Rogue host impersonating a real one | Client pairs with attacker, attacker harvests PIN or feeds hostile profile | Client shows the TLS fingerprint from mDNS TXT and verifies it on connect; PIN entry is explicit and shows the host name; client refuses plaintext pairing when `tls.enabled=true` is advertised. |
 | T10 | Hostile profile document | DoS of the deck, or surprises like `rm -rf` | Strict validation on load: unknown fields rejected, grid bounds enforced, action types must exist in the registry, `require_confirmation` honoured for destructive types. A profile is code-equivalent, which is why `profiles/` is reviewed like code and exported/imported as JSON. |
 | T11 | Rate abuse / accidental loops | Host DoS | Per-device token bucket (30 req/s burst 60), bounded action worker pool (default 8), queue overflow → `rate_limited`, macro step count and total duration caps. |
-| T12 | Slow-loris / hung session | Resource exhaustion | Read deadline tied to heartbeat, 10 s `hello` deadline, per-session write deadline, sessions capped (`--max-clients`, default 16). |
+| T12 | Slow-loris / hung session | Resource exhaustion | Read deadline tied to heartbeat, 10 s `hello` deadline, per-session write deadline, sessions capped (`session.max_clients` in the configuration, default 16). |
 | T13 | Log injection / secret leakage | Information disclosure | Structured logs; tokens and PINs are never logged, only `device_id` and a token fingerprint prefix. |
 | T14 | Replay of a captured `pair` request | Token theft | PIN single-use; pairing response is not cacheable; audit records the source IP and user agent of the successful exchange. |
 

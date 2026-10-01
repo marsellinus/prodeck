@@ -1,0 +1,11 @@
+# Build context for host/Dockerfile.
+#
+# Keep the context to source only. The release binary is built inside the image;
+# a stale local build must never be copied in, and the Go build cache and test
+# artefacts only slow the transfer down.
+mobiledeck
+mobiledeck.exe
+*.test
+*.out
+coverage.out
+coverage.html
