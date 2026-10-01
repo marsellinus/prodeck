@@ -448,13 +448,41 @@ private fun SubLabel(text: String?, tint: Color) {
  * (PROTOCOL.md §5.2). Only the pieces a deck label needs are implemented: a
  * precision digit and surrounding literals. An unrecognised format falls back
  * to the plain number, so a typo shows a value rather than an error.
+ *
+ * This is parsed by hand rather than with a regular expression on purpose. The
+ * previous version built `\{value(?::\.(\d+)f)?}` and threw
+ * PatternSyntaxException on Android: the ICU regex engine rejects an unescaped
+ * `}`, where java.util.regex tolerates it as a literal. Because the format comes
+ * from a profile, that turned any telemetry button — including the one in the
+ * shipped example profile — into a crash the moment the grid was drawn. Manual
+ * scanning cannot fail that way, and there is nothing to get wrong.
  */
 internal fun formatMetric(format: String?, value: Double): String {
     if (format.isNullOrBlank()) return formatNumber(value)
-    val match = Regex("\\{value(?::\\.(\\d+)f)?}").find(format) ?: return formatNumber(value)
-    val decimals = match.groupValues.getOrNull(1)?.toIntOrNull()
-    val number = if (decimals != null) String.format("%.${decimals}f", value) else formatNumber(value)
-    return format.replaceRange(match.range, number)
+
+    val start = format.indexOf("{value")
+    if (start < 0) return formatNumber(value)
+    val end = format.indexOf('}', start)
+    if (end < 0) return formatNumber(value)
+
+    // The spec between "{value" and "}", e.g. "" or ":.0f".
+    val spec = format.substring(start + "{value".length, end)
+
+    // A precision is written as ".<digits>f"; anything else means "no precision".
+    val decimals = run {
+        val dot = spec.indexOf('.')
+        if (dot < 0) return@run null
+        val f = spec.indexOf('f', dot + 1)
+        if (f <= dot + 1) return@run null
+        spec.substring(dot + 1, f).toIntOrNull()?.coerceIn(0, 6)
+    }
+
+    val number = if (decimals != null) {
+        String.format(java.util.Locale.US, "%.${decimals}f", value)
+    } else {
+        formatNumber(value)
+    }
+    return format.replaceRange(start, end + 1, number)
 }
 
 /** Trims a double to something a small tile can show. */

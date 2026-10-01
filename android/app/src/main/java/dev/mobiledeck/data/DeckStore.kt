@@ -6,12 +6,14 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -44,6 +46,16 @@ data class PairingUiState(
     val expiresInS: Int = 0,
     /** True once the probe succeeded and a PIN can be entered. */
     val ready: Boolean = false,
+    /**
+     * True while a pairing request is in flight.
+     *
+     * This is deliberately separate from [DeckUiState.connection]: the screen
+     * sits in [ConnectionState.Pairing] for as long as it is waiting for a PIN,
+     * so deriving "busy" from that state left the PIN field and the Pair button
+     * disabled for the whole life of the screen — the user could read the
+     * instruction and never act on it.
+     */
+    val submitting: Boolean = false,
 )
 
 /**
@@ -315,43 +327,68 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
         sessionJob = viewModelScope.launch { pairThenRun(host, pin) }
     }
 
+    /**
+     * Probes the host and keeps the PIN field usable.
+     *
+     * The probe runs first, so the fingerprint the user was shown is the one the
+     * pairing request is pinned to: pairing against an unverified certificate
+     * would hand the PIN to whatever answered on that address.
+     *
+     * It then repeats while the host reports pairing closed. A single probe was a
+     * real bug: the natural order for a user is to connect first and run
+     * `mobiledeck pair` afterwards, and with one probe the PIN field stayed
+     * disabled for the life of the screen — the user could see the instruction
+     * "run `mobiledeck pair`" but could never act on it. Polling also picks up
+     * the PIN's expiry, so the field disables itself again when the window
+     * closes instead of accepting a code the host will reject.
+     */
     private suspend fun awaitPin(host: DiscoveredHost) {
         _state.update {
             it.copy(
                 connection = ConnectionState.Pairing,
                 status = null,
                 error = null,
-                pairing = PairingUiState(host = host),
+                pairing = PairingUiState(host = host, submitting = false),
             )
         }
-        val probe = try {
-            pairingApi.probe(host.baseUrl(), host.fingerprint.takeIf { it.isNotBlank() })
-        } catch (e: PairingException) {
+
+        while (currentCoroutineContext().isActive) {
+            val probe = try {
+                pairingApi.probe(host.baseUrl(), host.fingerprint.takeIf { it.isNotBlank() })
+            } catch (e: PairingException) {
+                _state.update {
+                    it.copy(
+                        connection = ConnectionState.Disconnected,
+                        pairing = null,
+                        error = e.message,
+                    )
+                }
+                return
+            }
+
+            val open = probe.info.pairing.open
+            val name = probe.info.hostName.ifBlank { host.name }
             _state.update {
                 it.copy(
-                    connection = ConnectionState.Disconnected,
-                    pairing = null,
-                    error = e.message,
+                    pairing = PairingUiState(
+                        host = host,
+                        hostName = name,
+                        fingerprint = probe.pinnedFingerprint ?: probe.info.tls.fingerprint.takeIf { f -> f.isNotBlank() },
+                        pairingOpen = open,
+                        expiresInS = probe.info.pairing.expiresInS,
+                        ready = true,
+                    ),
+                    status = if (open) {
+                        "Enter the PIN shown on $name"
+                    } else {
+                        "This host is not accepting pairing. Run `mobiledeck pair` on it."
+                    },
                 )
             }
-            return
-        }
-        _state.update {
-            it.copy(
-                pairing = PairingUiState(
-                    host = host,
-                    hostName = probe.info.hostName.ifBlank { host.name },
-                    fingerprint = probe.pinnedFingerprint ?: probe.info.tls.fingerprint.takeIf { f -> f.isNotBlank() },
-                    pairingOpen = probe.info.pairing.open,
-                    expiresInS = probe.info.pairing.expiresInS,
-                    ready = true,
-                ),
-                status = if (probe.info.pairing.open) {
-                    "Enter the PIN shown on ${probe.info.hostName.ifBlank { host.name }}"
-                } else {
-                    "This host is not accepting pairing. Run `mobiledeck pair` on it."
-                },
-            )
+
+            // Faster while the user is waiting on a window they just opened, and
+            // slow enough afterwards that an idle screen costs nothing.
+            delay(if (open) PAIRING_POLL_OPEN_MS else PAIRING_POLL_CLOSED_MS)
         }
     }
 
@@ -360,7 +397,7 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
             it.copy(
                 connection = ConnectionState.Pairing,
                 error = null,
-                pairing = it.pairing ?: PairingUiState(host = host),
+                pairing = (it.pairing ?: PairingUiState(host = host)).copy(submitting = true),
             )
         }
         val probe = try {
@@ -416,6 +453,9 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
                 connection = ConnectionState.Disconnected,
                 status = null,
                 error = message,
+                // Clear the in-flight flag so a wrong PIN can be corrected and
+                // retried without leaving the screen: the field must come back.
+                pairing = it.pairing?.copy(submitting = false),
             )
         }
     }
@@ -1132,6 +1172,17 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
         const val DEFAULT_HOLD_REPEAT_MS = 250
 
         const val TELEMETRY_INTERVAL_MS = 1000
+
+        /**
+         * How often to re-probe the host while the user is on the pairing screen.
+         *
+         * Faster once the window is open, so a code that was just issued is
+         * accepted immediately; slower while it is closed, because the common
+         * case is a user staring at the screen deciding to run `mobiledeck pair`,
+         * and a tight loop there would be pure noise against the host.
+         */
+        const val PAIRING_POLL_OPEN_MS = 2_000L
+        const val PAIRING_POLL_CLOSED_MS = 4_000L
 
         /** §2.3: gate optional behaviour on this feature. */
         const val FEATURE_TELEMETRY = "telemetry"

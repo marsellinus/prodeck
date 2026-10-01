@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.mobiledeck.data.ConnectionState
+import dev.mobiledeck.data.DeckStore
 import dev.mobiledeck.data.DeckUiState
 import dev.mobiledeck.data.DiscoveredHost
 import dev.mobiledeck.data.PairingUiState
@@ -111,7 +113,7 @@ fun ConnectScreen(
 
         val pairing = state.pairing
         if (pairing != null) {
-            PairingSection(pairing = pairing, busy = state.connection == ConnectionState.Pairing, onPair = onPair)
+            PairingSection(pairing = pairing, busy = pairing.submitting, onPair = onPair)
         }
 
         DiscoveredHostsSection(
@@ -257,11 +259,18 @@ private fun PairingSection(pairing: PairingUiState, busy: Boolean, onPair: (Stri
             PinEntry(
                 value = pin,
                 onValueChange = { raw -> pin = raw.filter { it.isDigit() }.take(6) },
-                enabled = pairing.ready && pairing.pairingOpen && !busy,
+                // Always editable. The field used to be disabled until the host
+                // reported its pairing window open, which made it untappable: a
+                // user who connected first and ran `mobiledeck pair` afterwards
+                // could read the instruction and never act on it. Only the Pair
+                // button is gated, because that is the action that needs a live
+                // window; typing the code harms nothing and the host rejects it
+                // if the window is shut.
+                enabled = pairing.ready,
                 focusRequester = focusRequester,
                 onDone = {
                     keyboard?.hide()
-                    if (pin.length == 6) onPair(pin)
+                    if (pin.length == 6 && pairing.pairingOpen && !busy) onPair(pin)
                 },
             )
 
@@ -338,7 +347,18 @@ private fun PinEntry(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(52.dp)
+            // A tap anywhere in the PIN area focuses the field. The six boxes
+            // below are drawn views layered over the text field, so a tap that
+            // lands on a box is not guaranteed to reach the field itself; this
+            // makes the whole area behave the way it looks like it should.
+            .clickable(
+                enabled = enabled,
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+            ) {
+                runCatching { focusRequester.requestFocus() }
+            },
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -580,5 +600,32 @@ private fun ManualHostSection(onConnect: (String) -> Unit) {
         ) {
             Text("Connect")
         }
+
+        // The cable path. `adb reverse tcp:8765 tcp:8765` makes the phone's own
+        // loopback reach the host's port, so no address has to be typed and the
+        // traffic never touches the network. Offered as a button rather than
+        // discovered, because there is nothing to discover: the address is
+        // always loopback, and it simply fails if the reverse is not set up.
+        OutlinedButton(
+            onClick = {
+                keyboard?.hide()
+                onConnect("127.0.0.1:${DeckStore.DEFAULT_HOST_PORT}")
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Usb,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("Connect over USB")
+        }
+        Text(
+            text = "USB needs one command on the computer: " +
+                "adb reverse tcp:${DeckStore.DEFAULT_HOST_PORT} tcp:${DeckStore.DEFAULT_HOST_PORT}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
