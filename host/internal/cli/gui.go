@@ -98,15 +98,25 @@ func cmdGUI(env Env, args []string) int {
 		return ExitError
 	}
 
-	// The window closed: stop the host cleanly and report anything Serve hit.
+	// The window closed: stop the host cleanly.
+	//
+	// A failure here is reported but does not change the exit code. The window is
+	// already gone, so the user's session is over; returning non-zero would only
+	// make a launcher report an error for a normal close. It also covers the case
+	// where the configuration directory disappeared underneath a running host,
+	// which surfaces as an error from the server's shutdown path and is not
+	// something the user can act on from here.
 	stopServing()
 	select {
 	case err := <-serveErr:
 		if err != nil {
-			fmt.Fprintf(env.Stderr, "mobiledeck: %v\n", err)
-			return ExitError
+			h.Log.Logger.Warn("the host stopped with an error while shutting down", "error", err)
+			if !g.quiet {
+				fmt.Fprintf(env.Stderr, "mobiledeck: the host reported an error while stopping: %v\n", err)
+			}
 		}
 	case <-time.After(5 * time.Second):
+		h.Log.Logger.Warn("the host did not stop within 5 seconds")
 	}
 
 	if !g.quiet {

@@ -80,15 +80,11 @@ func (windowsLauncher) OpenFolder(ctx context.Context, path string) error {
 	if !st.IsDir() {
 		return fmt.Errorf("platform: %s is not a directory", abs)
 	}
-	// explorer.exe returns a non-zero exit code even on success, so the result
-	// is deliberately not inspected; the process is still waited for so it does
-	// not become a zombie, and the process group is torn down with the context.
-	cmd := CommandContext(ctx, "explorer.exe", abs)
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("platform: open folder %s: %w", abs, err)
-	}
-	go func() { _ = cmd.Wait() }()
-	return nil
+	// explorer.exe returns a non-zero exit code even on success, so the result is
+	// deliberately not inspected. It is detached for the same reason a terminal
+	// is: the file manager window belongs to the user, and tearing it down when
+	// the action returns would close the folder the user just opened.
+	return StartDetached(DetachedCommand("explorer.exe", abs))
 }
 
 // OpenTerminal opens a terminal emulator, preferring Windows Terminal and
@@ -106,6 +102,8 @@ func (windowsLauncher) OpenTerminal(ctx context.Context, opts TerminalOptions) e
 	}
 	command := strings.TrimSpace(opts.Command)
 
+	// Windows Terminal is preferred when present. It creates its own window and
+	// its own console, so it does not have the problem described below.
 	if _, err := exec.LookPath("wt.exe"); err == nil {
 		var args []string
 		if dir != "" {
@@ -114,28 +112,46 @@ func (windowsLauncher) OpenTerminal(ctx context.Context, opts TerminalOptions) e
 		if command != "" {
 			args = append(args, "cmd.exe", "/K", command)
 		}
-		return startConsole(ctx, "wt.exe", args, dir)
+		return startDetachedConsole("wt.exe", args, dir)
 	}
 
-	// No Windows Terminal: a classic console. /K keeps the window open after
-	// the command finishes, which is what Start-Process does for a console
-	// program in a new window.
-	args := []string{"/K"}
+	// No Windows Terminal: a classic console window.
+	//
+	// The console is created by `start` rather than by CREATE_NEW_CONSOLE on our
+	// own child, and that indirection is the point. A child given a brand new
+	// console has no console input buffer yet: the console is attached after the
+	// process starts, cmd.exe reads end-of-input from it, and the window closes
+	// immediately. Measured here: a child with CREATE_NEW_CONSOLE running
+	// `cmd /K` exits in well under a second, while the same shell started through
+	// `start` keeps running.
+	//
+	// `start` also makes the terminal a grandchild, which is correct for a
+	// different reason: the window belongs to the user, not to the host.
+	// The empty string is the window title, and it must be present and empty.
+	// `start` treats its first non-option argument as the program to run, so a
+	// named title is taken for the executable and the command fails with
+	// "cannot find the file". Go quotes the empty argument as "", which is
+	// exactly what start expects.
+	args := []string{"/C", "start", "", "cmd.exe", "/K"}
 	if command != "" {
 		args = append(args, command)
 	}
-	return startConsole(ctx, "cmd.exe", args, dir)
+	return startDetachedConsole("cmd.exe", args, dir)
 }
 
-// startConsole starts a console program in its own visible window.
-func startConsole(ctx context.Context, name string, args []string, dir string) error {
-	cmd := CommandContext(ctx, name, args...)
+// startDetachedConsole starts a terminal that outlives the button press.
+//
+// The command is deliberately detached from the action's context. A terminal is
+// something the user asked to open, not work the deck owns, and attaching the
+// context made the window appear and be force-killed about a hundred
+// milliseconds later, because the engine cancels the action's context the moment
+// Run returns (see DetachedCommand).
+func startDetachedConsole(name string, args []string, dir string) error {
+	cmd := DetachedCommand(name, args...)
 	cmd.Dir = dir
-	cmd.SysProcAttr.CreationFlags |= createNewConsole
-	if err := cmd.Start(); err != nil {
+	if err := StartDetached(cmd); err != nil {
 		return fmt.Errorf("platform: open terminal %s: %w", name, err)
 	}
-	go func() { _ = cmd.Wait() }()
 	return nil
 }
 

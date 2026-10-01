@@ -231,3 +231,51 @@ func MergeEnv(overrides map[string]string) []string {
 	}
 	return env
 }
+
+// DetachedCommand builds a command that outlives the action that started it.
+//
+// It is the opposite of CommandContext, and the difference matters: that one is
+// for work the deck owns and may cancel, this one is for a window the user asked
+// to open. A terminal, an editor or a game must keep running after the button
+// press is over, so the action's context is deliberately NOT attached.
+//
+// Attaching it was a real bug. CommandContext installs a Cancel that runs
+// taskkill on the process group, and the engine cancels the action's context as
+// soon as Run returns, so `open_terminal` produced a console that appeared and
+// was force-killed about a hundred milliseconds later. From the phone that looks
+// like the action crashing; from the desktop it is a window that flashes and
+// vanishes.
+//
+// The child still gets its own process group, so it is not signalled when the
+// host's group is, and so the host exiting does not take the user's terminal with
+// it. Nothing waits for it, because waiting on a program the user is now using
+// would hold a slot in the action pool for as long as that program lives.
+func DetachedCommand(name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	setProcessGroup(cmd)
+	return cmd
+}
+
+// StartDetached starts a command and leaves it running.
+//
+// Its output goes nowhere: the deck has no terminal to show it in, and a child
+// that inherits the host's stdout would interleave its own output with the
+// structured log. A program that needs to report something to the user writes it
+// in its own window.
+func StartDetached(cmd *exec.Cmd) error {
+	if cmd.Stdout == nil {
+		cmd.Stdout = nil
+	}
+	if cmd.Stderr == nil {
+		cmd.Stderr = nil
+	}
+	cmd.Stdin = nil
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// Reap the child so it does not linger as a zombie. Wait returns as soon as
+	// the process exits, which for a terminal is when the user closes it, and
+	// nothing in the host depends on that.
+	go func() { _ = cmd.Wait() }()
+	return nil
+}
