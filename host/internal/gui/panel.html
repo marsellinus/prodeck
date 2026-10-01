@@ -74,6 +74,20 @@
   .tile:hover { border-color: var(--accent); transform: translateY(-1px); }
   .tile.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(76,139,245,.35); }
   .tile.empty { border-style: dashed; color: var(--dim); }
+  .tile.draggable { cursor: grab; }
+  .tile.dragging { opacity: .4; cursor: grabbing; }
+  .tile.drop-target {
+    border-color: var(--ok); border-style: solid;
+    box-shadow: 0 0 0 2px rgba(34,197,94,.35);
+  }
+  .tile.drop-swap { border-color: var(--warn); box-shadow: 0 0 0 2px rgba(234,179,8,.35); }
+  .tile .handle {
+    position: absolute; top: 3px; right: 5px; font-size: 11px; color: var(--dim);
+    opacity: 0; transition: opacity .12s;
+  }
+  .tile:hover .handle { opacity: 1; }
+  .tile { position: relative; }
+  .toolbar-hint { color: var(--dim); font-size: 12px; }
   .tile .ico { font-size: 20px; line-height: 1; }
   .tile .lbl { font-size: 11px; color: var(--fg); word-break: break-word; }
   .toast {
@@ -158,7 +172,7 @@
         <label style="margin:0">Rows</label>
         <input id="grid-rows" type="number" min="1" max="16" style="width:80px" onchange="applyGrid()">
         <span class="grow"></span>
-        <span style="color:var(--dim);font-size:12px">Click a cell to edit it</span>
+        <span class="toolbar-hint">Click a cell to edit it. Drag a button to move it, or onto another to swap them.</span>
       </div>
       <div class="grid" id="button-grid"></div>
     </div>
@@ -533,21 +547,104 @@ function renderGrid() {
       const tile = document.createElement("div");
       tile.className = "tile" + (cell ? "" : " empty");
       if (cell && cell.id === selected) tile.classList.add("selected");
+      tile.dataset.row = r;
+      tile.dataset.col = c;
+
       if (cell) {
         const icon = cell.icon || {};
+        tile.classList.add("draggable");
+        tile.draggable = true;
         tile.innerHTML =
+          "<span class='handle' title='drag to move'>⠿</span>" +
           "<div class='ico'>" + esc(icon.value || "·") + "</div>" +
           "<div class='lbl'>" + esc(cell.label || cell.id) + "</div>" +
           "<div class='mono' style='font-size:10px;color:var(--dim)'>" +
           esc((cell.on_press && cell.on_press.type) || "") + "</div>";
         tile.onclick = () => { selected = cell.id; renderGrid(); renderEditor(); };
+        attachDrag(tile, cell);
       } else {
         tile.textContent = "+";
         tile.onclick = () => createButtonAt(r, c);
       }
+      attachDrop(tile, r, c);
       grid.appendChild(tile);
     }
   }
+}
+
+// ── drag and drop ─────────────────────────────────────────────────────────
+// Moving a button is the most common layout edit, and it should not require
+// deleting and recreating it. Dropping onto an empty cell moves the button;
+// dropping onto another button swaps the two, which is what the user means when
+// they drag one onto the other.
+let dragSource = null;
+
+function attachDrag(tile, button) {
+  tile.addEventListener("dragstart", (ev) => {
+    dragSource = button;
+    tile.classList.add("dragging");
+    // Some browsers refuse a drag with no data set.
+    ev.dataTransfer.setData("text/plain", button.id);
+    ev.dataTransfer.effectAllowed = "move";
+  });
+  tile.addEventListener("dragend", () => {
+    tile.classList.remove("dragging");
+    dragSource = null;
+    document.querySelectorAll(".drop-target,.drop-swap")
+      .forEach(el => el.classList.remove("drop-target", "drop-swap"));
+  });
+}
+
+function attachDrop(tile, row, col) {
+  tile.addEventListener("dragover", (ev) => {
+    if (!dragSource) return;
+    ev.preventDefault();
+    const p = page();
+    const target = (p.buttons || []).find(b => {
+      const c = b.cell || {};
+      return c.row === row && c.column === col;
+    });
+    tile.classList.toggle("drop-swap", !!target && target.id !== dragSource.id);
+    tile.classList.toggle("drop-target", !target);
+    ev.dataTransfer.dropEffect = "move";
+  });
+
+  tile.addEventListener("dragleave", () => {
+    tile.classList.remove("drop-target", "drop-swap");
+  });
+
+  tile.addEventListener("drop", async (ev) => {
+    ev.preventDefault();
+    if (!dragSource) return;
+    const p = page();
+    const from = dragSource.cell || { row: 0, column: 0 };
+    if (from.row === row && from.column === col) return;
+
+    const target = (p.buttons || []).find(b => {
+      const c = b.cell || {};
+      return c.row === row && c.column === col;
+    });
+
+    if (target && target.id !== dragSource.id) {
+      // Swap: the other button takes the dragged one's place.
+      target.cell = {
+        row: from.row, column: from.column,
+        row_span: target.cell.row_span || 1, column_span: target.cell.column_span || 1,
+      };
+    }
+    dragSource.cell = {
+      row, column: col,
+      row_span: dragSource.cell.row_span || 1,
+      column_span: dragSource.cell.column_span || 1,
+    };
+
+    const moved = dragSource.id;
+    dragSource = null;
+    selected = moved;
+    renderGrid();
+    renderEditor();
+    await saveProfile();
+  });
 }
 
 function renderEditor() {
@@ -715,12 +812,32 @@ async function applyGrid() {
 }
 
 async function saveProfile() {
+  const id = current.id;
   try {
-    current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(current.id) + "/document", current);
+    current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document", current);
     toast("Saved. Connected phones update immediately.", "ok");
     renderGrid();
+    renderEditor();
   } catch (e) {
     toast("Not saved: " + e.message, "err");
+    // Reload the document the host actually holds.
+    //
+    // Without this the panel keeps showing the edit that was just refused, and
+    // every later save fails for the same reason: the local copy is the invalid
+    // one. A refused drag would leave the grid permanently unsaveable, with no
+    // way back except closing the window.
+    try {
+      current = await api("GET", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document");
+      if (!current.pages.some(p => p.id === currentPage)) {
+        currentPage = current.root_page || (current.pages[0] && current.pages[0].id);
+      }
+      selected = null;
+      renderPageTabs();
+      renderGrid();
+      renderEditor();
+    } catch (_) {
+      // The host is unreachable; the next refresh will resynchronise.
+    }
   }
 }
 

@@ -35,6 +35,20 @@ Click an empty cell to create a button there, or a filled one to edit it.
   refused, with the id of the button that holds it, because two buttons in one
   cell would render on top of each other and the phone would have to pick a
   winner.
+
+### Moving a button
+
+**Drag a tile to move it.** Dropping it on an empty cell moves the button there;
+dropping it on another button **swaps the two**, which is what you mean when you
+drag one onto the other. The tile under the cursor is outlined green for a move
+and amber for a swap, so the result is visible before you release.
+
+The grid is saved as soon as you drop, so the phone updates immediately.
+
+If the host refuses the move, the panel reloads the profile it actually holds and
+says why. That matters: without it the panel would keep showing the refused
+layout, and every later save would fail for the same reason, leaving the grid
+unsaveable until the window was reopened.
 - **Action** is chosen from the host's own registry, with the scope it needs
   shown next to it. The list is read from the host, so it cannot offer something
   the host will not run.
