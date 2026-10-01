@@ -61,6 +61,18 @@ interface Transport {
     /** Frames received from the host, in arrival order. Completes on close. */
     val incoming: Flow<String>
 
+    /**
+     * How the connection ended, once it has.
+     *
+     * The transport records this because only it sees the WebSocket close frame,
+     * and the close code is what decides whether the client reconnects, wipes
+     * its token, or stops for good (PROTOCOL.md §2.5). A state machine that
+     * invents its own code cannot tell a revocation from a dropped network.
+     *
+     * Null until the connection has ended.
+     */
+    val closeInfo: CloseInfo?
+
     /** Closes the socket, if it is still open. Idempotent. */
     fun close(code: Int, reason: String)
 }
@@ -79,6 +91,18 @@ class WsTransport(
 
     private var socket: WebSocket? = null
     private var handshake: CancellableContinuation<ConnectResult>? = null
+
+    /**
+     * How the connection ended.
+     *
+     * OkHttp reports the host's close frame in `onClosing`/`onClosed`, and that
+     * code is the only signal that separates a revocation from a dropped
+     * network. It is kept here so `DeckClient` can act on the real reason
+     * instead of guessing one.
+     */
+    @Volatile
+    override var closeInfo: CloseInfo? = null
+        private set
 
     /**
      * One channel per connection. A fresh transport is created per attempt by
@@ -136,17 +160,26 @@ class WsTransport(
         }
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+            // Record the host's code before acknowledging: `onClosing` is where
+            // the peer's reason is delivered, and `onClosed` that follows may
+            // report the code this side echoed back.
+            if (closeInfo == null) closeInfo = CloseInfo(code, reason)
             webSocket.close(1000, null)
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             socket = null
-            settle(ConnectResult.Closed(CloseInfo(code, reason)))
+            if (closeInfo == null) closeInfo = CloseInfo(code, reason)
+            settle(ConnectResult.Closed(closeInfo!!))
             frames.close()
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             socket = null
+            // A transport failure has no peer close code, so it is reported as an
+            // abnormal closure rather than left null: the caller must still learn
+            // that the connection ended.
+            if (closeInfo == null) closeInfo = CloseInfo(1006, t.message ?: "connection failed")
             settle(ConnectResult.Failed(t))
             frames.close(IOException("websocket failed", t))
         }

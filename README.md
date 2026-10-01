@@ -28,7 +28,7 @@ renders the grid, and presses buttons.
 | Piece | State |
 |-------|-------|
 | Host agent (Go, Windows/Linux/macOS) | working, cross-compiles for 6 targets |
-| Android client (Kotlin + Compose) | builds; 42 unit tests pass; see the note below |
+| Android client (Kotlin + Compose) | 53 tests pass, 9 against a real host; see the note below |
 | Protocol v1 | frozen, documented in [`docs/PROTOCOL.md`](docs/PROTOCOL.md) |
 | Pairing, tokens, scopes, rate limits, audit | working |
 | Actions: keyboard, mouse, apps, scripts, media, system, flow, navigation | 37 types |
@@ -42,29 +42,42 @@ application window, driven through the real protocol over a real WebSocket.
 
 ### What has and has not been verified on Android
 
-Stated plainly, because "it builds" is not "it works":
+Stated plainly, because "it builds" is not "it works".
 
-**Verified.** The APK builds. 42 JVM unit tests pass, covering the protocol
-envelope, the close-code behaviour, request correlation, backoff and jitter, and
-manual host parsing. On an Android 37 emulator the app installs, launches with no
-crash, registers its mDNS listener for `_mobiledeck._tcp.local`, accepts a typed
-`host:port`, reaches the host over HTTP, reads its name and identity, renders the
-pairing card, and surfaces the host's error message verbatim when a connection
-fails (`Unable to resolve host "…"`).
+**Verified against a real host.** 53 JVM tests pass, of which 9 drive the real
+client stack — the real OkHttp `WsTransport`, the real `DeckClient` state
+machine, the real protocol — against a real `mobiledeck` process. They cover:
+reading `/api/v1/info`, pairing over REST, the `hello`/`welcome` handshake,
+fetching a profile, **pressing a button and receiving `action.result`**, the
+telemetry stream, `not_found` handling, a bogus token being refused with 4401, a
+revoked token with 4401, a disabled device with 4403, and surviving the heartbeat
+window. Start a host for them with `scripts/e2e-host.sh start`.
 
-**Not verified, and this is the honest gap.** The full press-the-button path has
-not been observed end to end on the emulator: pairing was never completed there.
-The blocker is the test harness, not the app — this emulator image's
-`adb shell input` cannot reliably drive Compose text fields (`input text` throws
-an internal `NullPointerException`, and synthetic taps do not move focus to the
-PIN field), so the PIN could not be typed. The host side of that same path *is*
-covered: `internal/server` drives the real protocol over a real WebSocket and
-presses real buttons in-process, and the engine and platform layers are tested
-against recording fakes plus the real Windows input stack.
+**Verified on a real device.** On a Xiaomi Mi A1 (LineageOS, Android 14) over
+`adb reverse`, the app installs, launches with no crash, registers its mDNS
+listener, accepts a typed `host:port`, reaches the host, reads its name and
+identity, renders the pairing card with the fingerprint, and shows the host's
+error message verbatim when a connection fails.
 
-To close it, either pair by hand once on a device and re-run, or add an
-instrumented Compose test (`androidTest`) that calls the ViewModel directly
-instead of going through `adb input`.
+**Not verified.** Pressing a real button on a real device with a finger, and the
+Compose rendering beyond what the UI dump shows. The blocker is `adb`: this
+device's `adb shell input text` throws an internal `NullPointerException`, and
+synthetic taps do not reliably move focus to a Compose text field, so pairing
+cannot be completed from a script. Pair once by hand and the grid will render;
+everything behind the press is covered by the JVM tests above.
+
+Three real bugs were found by writing those tests, none of which any unit test
+with a fake transport would have caught:
+
+1. **The envelope was sent without its `v` field.** `encodeDefaults = false`
+   dropped `version` because it equalled its own default, so the host rejected
+   every frame at its version gate and closed the socket. The client could never
+   have connected.
+2. **The host's close code was discarded.** The reader ended the session with a
+   hardcoded 1000, so a revoked device looked like a routine disconnect and the
+   dead token was never cleared.
+3. **A close during the handshake surfaced as an exception**, not as a refusal,
+   so a revoked device produced a generic error instead of "pair again".
 
 ## Quick start
 
@@ -304,6 +317,13 @@ go build ./...
 ```sh
 cd android
 ./gradlew assembleDebug testDebugUnitTest
+```
+
+The client's integration tests need a host. Start a throwaway one and export what
+it prints:
+
+```sh
+sh scripts/e2e-host.sh start
 ```
 
 The end-to-end test that proves keystrokes really reach an application needs a

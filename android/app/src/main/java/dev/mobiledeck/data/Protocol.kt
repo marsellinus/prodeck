@@ -1,5 +1,6 @@
 package dev.mobiledeck.data
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -135,10 +136,18 @@ enum class CloseCode(val code: Int) {
 @Serializable
 @JsonIgnoreProperties
 data class Envelope(
+    // @EncodeDefault is required, not decorative. ProtocolJson sets
+    // encodeDefaults = false so payloads stay small, which would also drop `v`
+    // because it equals its own default — and a frame without `v` is rejected by
+    // the host's version gate before it is parsed. That failure mode is invisible
+    // from the client side (the socket just closes), so the field is pinned here.
+    @EncodeDefault
     val v: Int = PROTOCOL_VERSION,
     val id: String? = null,
     @SerialName("reply_to") val replyTo: String? = null,
     val type: String,
+    // The protocol makes `ts` required, so it is pinned for the same reason.
+    @EncodeDefault
     val ts: Long = 0L,
     val payload: JsonElement? = null,
 )

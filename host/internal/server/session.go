@@ -250,6 +250,14 @@ func (sess *Session) readEnvelope() (proto.Envelope, error) {
 		count := sess.malformed
 		sess.mu.Unlock()
 
+		// The cause is logged because the caller only sees "malformed frame":
+		// without it, a version mismatch and a truncated frame are
+		// indistinguishable from the outside, and that difference is exactly
+		// what a client author needs to know.
+		sess.log.Debug("undecodable frame",
+			"device", sess.device.ID, "bytes", len(data), "error", err,
+			"preview", previewFrame(data))
+
 		if count >= maxMalformedFrames {
 			sess.log.Warn("closing session: too many malformed frames", "device", sess.device.ID, "count", count)
 			// Close here rather than letting the caller do it: close() is
@@ -261,6 +269,16 @@ func (sess *Session) readEnvelope() (proto.Envelope, error) {
 		return proto.Envelope{}, errMalformedFrame
 	}
 	return env, nil
+}
+
+// previewFrame renders the start of a frame for a debug log line, bounded so a
+// huge frame cannot flood the log.
+func previewFrame(b []byte) string {
+	const max = 200
+	if len(b) <= max {
+		return string(b)
+	}
+	return string(b[:max]) + "…"
 }
 
 // maxMalformedFrames is how many undecodable frames a session tolerates before

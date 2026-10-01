@@ -185,6 +185,13 @@ class DeckClient(
         } catch (e: TimeoutCancellationException) {
             close(CloseCode.MALFORMED.code, "no welcome within the handshake deadline")
             HandshakeResult.Failed(e)
+        } catch (e: ConnectionLost) {
+            // The host closed while we waited for `welcome`. That is a refusal,
+            // not a failure: it is how a revoked or disabled device is turned
+            // away, and the code in it is what the UI uses to say so and to
+            // decide whether to keep the stored token. Reporting it as an
+            // exception would surface as a generic error and lose both.
+            HandshakeResult.Refused(e.info)
         }
     }
 
@@ -297,13 +304,20 @@ class DeckClient(
                 dispatch(text)
             }
         } catch (_: Throwable) {
-            // The flow fails when the socket dies. `onClosed`/`onFailure` in the
-            // transport already produced the authoritative close reason, so the
-            // exception itself carries nothing extra.
+            // The flow fails when the socket dies. The authoritative close reason
+            // is recorded below, from the transport, so the exception itself
+            // carries nothing extra.
         }
         // Reaching here means the flow completed: the socket is gone.
+        //
+        // The close code is taken from the transport, never invented here. The
+        // host's code is the only thing that distinguishes "the operator revoked
+        // this phone" (4403) from "the network dropped" (1000), and inventing a
+        // normal closure would silently turn a revocation into a routine
+        // reconnect that retries forever with a token the host has already
+        // thrown away.
         if (!closed) {
-            terminate(CloseInfo(CloseCode.NORMAL.code, "connection ended"))
+            terminate(transport.closeInfo ?: CloseInfo(CloseCode.NORMAL.code, "connection ended"))
         }
     }
     private suspend fun dispatch(text: String) {

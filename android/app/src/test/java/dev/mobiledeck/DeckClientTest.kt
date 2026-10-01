@@ -55,7 +55,11 @@ import org.junit.Test
  */
 private class FakeTransport : Transport {
 
-    val sent = mutableListOf<String>()
+    // A synchronized list: the client appends from its own coroutine while the
+    // test reads from the test thread, and a plain ArrayList throws
+    // ConcurrentModificationException when those overlap.
+    val sent: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
+
     private val frames = Channel<String>(Channel.UNLIMITED)
 
     /** Set to make `send` report a dead socket. */
@@ -73,8 +77,17 @@ private class FakeTransport : Transport {
 
     override val incoming: Flow<String> = frames.consumeAsFlow()
 
+    /**
+     * How the connection ended, as a real transport would report it.
+     *
+     * Settable so a test can reproduce a host close code; the default is null,
+     * which is what a transport reports while the socket is still open.
+     */
+    override var closeInfo: CloseInfo? = null
+
     override fun close(code: Int, reason: String) {
         closedWith = code to reason
+        if (closeInfo == null) closeInfo = CloseInfo(code, reason, byClient = true)
         frames.close()
     }
 
@@ -439,6 +452,72 @@ class DeckClientTest {
         transport.dead = true
 
         assertFalse(client.send(MsgType.PING))
+    }
+
+    /**
+     * A host close code must reach the caller unchanged.
+     *
+     * This is a regression test for a real bug: the reader used to end the
+     * session with a hardcoded 1000, which threw away the host's code. A revoked
+     * device (4403) then looked like an ordinary disconnect, so the store would
+     * keep the dead token and retry forever instead of sending the user back to
+     * pairing.
+     */
+    @Test
+    fun `the host close code survives to the caller`() = runBlocking {
+        for (code in listOf(4401, 4403, 4408, 4429)) {
+            val transport = FakeTransport()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val client = DeckClient(transport, scope)
+            val events = mutableListOf<ClientEvent>()
+            val collector = scope.launch { client.events.collect { events += it } }
+
+            val job = scope.launch { client.handshake("ws://host/ws", hello()) }
+            withTimeout(1_000) {
+                while (transport.sentOfType(MsgType.HELLO).isEmpty()) yield()
+            }
+            transport.deliver(welcomeFrame())
+
+            // The host closes with its own code, as the transport would report.
+            transport.closeInfo = CloseInfo(code, "host said so")
+            transport.close(code, "host said so")
+
+            withTimeout(2_000) {
+                while (events.none { it is ClientEvent.Closed }) delay(5)
+            }
+            val closed = events.filterIsInstance<ClientEvent.Closed>().single()
+            assertEquals("close code $code was lost", code, closed.info.code)
+
+            collector.cancel()
+            job.cancel()
+            scope.cancel()
+        }
+    }
+
+    /**
+     * A close during the handshake must be reported as a refusal carrying the
+     * host's code, not as a generic failure: that code is what tells the user
+     * their device was revoked.
+     */
+    @Test
+    fun `a close during the handshake is a refusal with the host code`() = runBlocking {
+        val transport = FakeTransport()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val client = DeckClient(transport, scope)
+
+        val job = async { client.handshake("ws://host/ws", hello()) }
+        withTimeout(1_000) {
+            while (transport.sentOfType(MsgType.HELLO).isEmpty()) yield()
+        }
+        transport.closeInfo = CloseInfo(4401, "token revoked")
+        transport.close(4401, "token revoked")
+
+        val result = withTimeout(2_000) { job.await() }
+        assertTrue("expected a refusal, got $result", result is HandshakeResult.Refused)
+        assertEquals(4401, (result as HandshakeResult.Refused).info.code)
+
+        job.cancel()
+        scope.cancel()
     }
 
 }

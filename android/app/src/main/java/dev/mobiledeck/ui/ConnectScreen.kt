@@ -2,6 +2,8 @@ package dev.mobiledeck.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +68,7 @@ import dev.mobiledeck.data.ConnectionState
 import dev.mobiledeck.data.DeckUiState
 import dev.mobiledeck.data.DiscoveredHost
 import dev.mobiledeck.data.PairingUiState
+import kotlinx.coroutines.delay
 
 /**
  * The connect screen: discovery, manual entry, PIN entry and the pairing
@@ -206,6 +209,27 @@ private fun PairingSection(pairing: PairingUiState, busy: Boolean, onPair: (Stri
     var pin by remember(pairing.host.key) { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+
+    // Focus the PIN field as soon as it becomes usable.
+    //
+    // Without this the field is only reachable by tapping it exactly: the six
+    // boxes the user sees are drawn views, not the text field, so a tap that
+    // lands on a box does not always forward focus. A user who has just opened
+    // this card wants to type the code, so focusing it for them is both the
+    // expected behaviour and the only reliable way in.
+    //
+    // requestFocus throws when the node is not attached yet, which is the normal
+    // case on the first composition, so it is retried rather than attempted
+    // once: a single failed attempt would leave the field unfocused for the rest
+    // of the screen's life because the effect's keys never change again.
+    LaunchedEffect(pairing.ready, pairing.pairingOpen, busy) {
+        if (!(pairing.ready && pairing.pairingOpen && !busy)) return@LaunchedEffect
+        repeat(20) {
+            val focused = runCatching { focusRequester.requestFocus() }.isSuccess
+            if (focused) return@LaunchedEffect
+            delay(100)
+        }
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -374,7 +398,15 @@ private fun PinEntry(
             keyboardActions = KeyboardActions(onDone = { onDone() }),
             modifier = Modifier
                 .fillMaxSize()
-                .focusRequester(focusRequester),
+                .focusRequester(focusRequester)
+                .clickable(enabled = enabled, indication = null, interactionSource = remember { MutableInteractionSource() }) {
+                    // An explicit tap handler, because a click on the drawn boxes
+                    // above does not reliably reach the field: they are siblings
+                    // drawn over it, so the tap is consumed by whichever box it
+                    // lands on. Requesting focus here makes a tap anywhere on the
+                    // PIN area behave the way it looks like it should.
+                    runCatching { focusRequester.requestFocus() }
+                },
         )
     }
 }
