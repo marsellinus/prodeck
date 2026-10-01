@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        A deliberately bare platform theme: every colour, shape and typeface the
+        deck uses comes from Material3 inside Compose, driven by the profile's
+        `theme` object. The XML theme only has to give the window a sane
+        background before the first frame and let the activity draw edge to edge.
+
+        `Theme.Material.NoActionBar` is used rather than a DayNight parent
+        because the deck's own light/dark decision comes from the profile, not
+        from the system setting, and a platform-level DayNight theme would make
+        the two disagree on a light-profile-over-dark-system.
+    -->
+    <style name="Theme.MobileDeck" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/deck_window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

@@ -1,0 +1,64 @@
+# =============================================================================
+# DOCUMENTATION AND DEVELOPER TOOLING ONLY.
+#
+# The MobileDeck host agent NEVER requires Docker. It is one static binary and
+# runs directly:
+#
+#     cd host && go run ./cmd/mobiledeck run        # or ./mobiledeck run
+#
+# Docker appears here only to serve the docs and to give a reproducible build
+# shell. Do not add a runtime service for the agent: a container cannot drive
+# the host's keyboard, mouse, or X11 session without --privileged and socket
+# mounts, which is worse than not using Docker at all (ADR-0009).
+# =============================================================================
+
+services:
+  # Static HTTP server for docs/. Read-only mount: this service must never be
+  # able to write to the repository.
+  #
+  #   docker compose up docs
+  #   -> http://localhost:8080/
+  docs:
+    image: nginx:1.27-alpine
+    container_name: mobiledeck-docs
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docs:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  # Reproducible build environment: Go 1.26 for the host, a JDK for the Android
+  # client's Gradle build. It is a shell, not a service; the repository is
+  # mounted at /work and nothing is built automatically.
+  #
+  #   docker compose run --rm tools bash
+  #   (inside) cd /work/host && go build ./... && go test ./...
+  #   (inside) cd /work/android && ./gradlew assembleDebug
+  #
+  # The JDK is installed on first start from Debian's archive because the
+  # upstream golang image ships no Java. This costs one apt download per fresh
+  # container; pin the version below if you need byte-reproducible toolchains.
+  tools:
+    image: golang:1.26-bookworm
+    container_name: mobiledeck-tools
+    working_dir: /work
+    volumes:
+      - .:/work
+      - go-build-cache:/root/.cache/go-build
+      - go-mod-cache:/go/pkg/mod
+      - gradle-cache:/root/.gradle
+    environment:
+      # The Android build resolves its SDK from local.properties, which is
+      # gitignored and machine-local. Mount it or pass ANDROID_HOME explicitly;
+      # this container is not an Android SDK image.
+      CGO_ENABLED: "0"
+      GOFLAGS: "-trimpath"
+    command: >
+      bash -lc "apt-get update
+      && apt-get install -y --no-install-recommends openjdk-21-jdk-headless
+      && exec sleep infinity"
+
+volumes:
+  go-build-cache:
+  go-mod-cache:
+  gradle-cache:

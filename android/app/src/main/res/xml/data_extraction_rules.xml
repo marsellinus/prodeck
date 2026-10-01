@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Backup is disabled for the application as a whole: the device token lives in
+    SharedPreferences encrypted with an AndroidKeyStore key, and that key is
+    non-exportable, so a restored backup would carry undecryptable ciphertext
+    (and the token must not leave the device in the first place).
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="." />
+    </device-transfer>
+</data-extraction-rules>

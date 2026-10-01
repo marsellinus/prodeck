@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        `windowLayoutInDisplayCutoutMode` is API 27+, so it lives in a versioned
+        override rather than the base theme. shortEdges lets the deck grid use
+        the full screen on a device with a notch, which is the whole point of a
+        grid of tiles.
+    -->
+    <style name="Theme.MobileDeck" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/deck_window_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

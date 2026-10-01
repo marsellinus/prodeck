@@ -1,0 +1,10 @@
+<resources>
+    <!--
+        Only the application label lives here. Every other string in the deck is
+        either rendered from the profile document the host sent (labels,
+        sublabels, page names) or is a developer-facing status message in
+        `DeckStore`/`App.kt`, so a resource table would be a second, divergent
+        place for text that has one source of truth.
+    -->
+    <string name="app_name">MobileDeck</string>
+</resources>

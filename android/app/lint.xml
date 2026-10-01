@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Lint suppressions, each with the reason it is safe.
+
+    The general rule for this project is that a suppression is a claim that lint
+    is wrong about *this* code, and a claim needs an argument. Every entry below
+    carries one; anything without a defensible argument is fixed rather than
+    silenced.
+-->
+<lint>
+    <!--
+        InsecureBaseConfiguration + AcceptsUserCertificates, in
+        res/xml/network_security_config.xml.
+
+        Both are true statements about the file and both are intentional:
+
+          * Android cannot express "cleartext to RFC1918 ranges only", so the
+            base config permits cleartext globally. The application layer is
+            what enforces the policy: `PairingApi.probe` refuses a host that
+            advertises `tls.enabled=true` when no fingerprint pin is known, and
+            `PinnedTrustManager` is the only trust manager used for such a host
+            (docs/SECURITY.md T9).
+          * The `user` trust anchor is present so an operator can install their
+            own CA. It is not what makes the host's self-signed certificate
+            work — the pin is, and the pin is checked in constant time.
+    -->
+    <issue id="InsecureBaseConfiguration" severity="ignore" />
+    <issue id="AcceptsUserCertificates" severity="ignore" />
+
+    <!--
+        CustomX509TrustManager, in data/PairingApi.kt.
+
+        Lint's warning is correct in general and inapplicable here: the manager
+        does not implement chain validation at all. It accepts exactly one
+        certificate, by SHA-256 fingerprint, compared with
+        `MessageDigest.isEqual`. There is no hostname or expiry check because a
+        fingerprint match is strictly stronger than either — a certificate with
+        the right fingerprint cannot be forged without the private key. The
+        platform trust store is deliberately not consulted, because falling back
+        to it on a mismatch would make the pin advisory.
+    -->
+    <issue id="CustomX509TrustManager" severity="ignore" />
+
+    <!--
+        HardwareIds, in data/DeckStore.kt (`deviceId()`).
+
+        `ANDROID_ID` is read deliberately. PROTOCOL.md §2.2 binds the device
+        token to the device id the host recorded, so the value must be stable
+        across launches; a random id persisted separately would be lost with the
+        app's data while the host still held the token, leaving a device that
+        can never re-authenticate. `ANDROID_ID` is per-app-signing-key and
+        per-user on API 26+, is not a hardware identifier, and is reset by a
+        factory reset. It is not used for advertising or tracking, and it never
+        leaves the LAN.
+    -->
+    <issue id="HardwareIds" severity="ignore" />
+
+    <!--
+        GradleDependency, on the pinned AndroidX versions.
+
+        The task pins `androidx.core:core-ktx:1.13.1` and the rest of the
+        AndroidX set. Newer releases exist; bumping them is a deliberate
+        upgrade, not something a lint run should decide, and mixing a newer
+        core-ktx with the pinned Compose BOM is how a build acquires a
+        dependency conflict nobody asked for.
+    -->
+    <issue id="GradleDependency" severity="ignore" />
+
+    <!--
+        NewerVersionAvailable is the same finding from the other lint pass.
+    -->
+    <issue id="NewerVersionAvailable" severity="ignore" />
+
+    <!--
+        MonochromeLauncherIcon / the `-v26` resource folder, in
+        res/mipmap-anydpi-v26/.
+
+        Lint notes that with minSdk 26 the `-v26` qualifier is redundant, and
+        for an ordinary resource it would be. An *adaptive* icon is not
+        ordinary: AAPT2 requires the version qualifier on the folder that
+        declares `<adaptive-icon>`, and renaming the folder to `mipmap-anydpi`
+        makes the build fail with "resource mipmap/ic_launcher not found". The
+        qualifier is load-bearing, not decorative.
+    -->
+    <issue id="ObsoleteSdkInt" severity="ignore" />
+
+    <!--
+        UnusedResources.
+
+        `ic_launcher_round` and the `Theme.MobileDeck` variants are referenced
+        from the manifest and from a versioned resource overlay, which lint's
+        resource graph does not always follow.
+    -->
+    <issue id="UnusedResources" severity="warning" />
+</lint>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Cleartext policy for the deck.
+
+    A network security config cannot express "cleartext permitted to private LAN
+    ranges only", so this file does the next best thing: it permits cleartext
+    globally at the platform level, while the application layer refuses to use
+    plaintext for anything that matters:
+
+      * PairingApi rejects a host whose /api/v1/info advertises
+        tls.enabled=true when no fingerprint pin is known
+        (PROTOCOL.md §3, docs/SECURITY.md T9).
+      * When the host advertises TLS, PairingApi and WsTransport both use
+        https:// / wss:// with a pinned-certificate X509TrustManager.
+      * Plaintext is only ever reached when the operator deliberately started
+        the host with TLS disabled for a trusted LAN, which the host itself
+        advertises through tls.enabled=false and tls.plaintext_allowed=true.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <!--
+                The host uses a self-signed certificate. It is trusted only
+                through the application-level pin check, so the platform store
+                stays authoritative for everything else.
+            -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

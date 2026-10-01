@@ -1,0 +1,54 @@
+# MobileDeck repository-wide ignores.
+# Parts of the tree have their own .gitignore (for example android/.gitignore);
+# this file covers what is shared, plus the host's build output and the runtime
+# state the agent writes on a developer machine.
+
+# --- Go build output ---------------------------------------------------------
+# `go build -o mobiledeck ./cmd/mobiledeck` inside host/. The release binary is
+# a build artefact, never committed.
+host/mobiledeck
+host/mobiledeck.exe
+host/*.test
+host/*.out
+coverage.out
+coverage.html
+
+# --- Android -----------------------------------------------------------------
+build/
+.gradle/
+.kotlin/
+local.properties
+*.apk
+*.aab
+captures/
+.cxx/
+.externalNativeBuild/
+
+# --- Runtime state and secrets ----------------------------------------------
+# Written by the agent at runtime and machine-local. devices.json and
+# audit.jsonl are secrets; see docs/SECURITY.md §6.
+devices.json
+audit.jsonl
+logs/
+tls/
+config.json
+
+# Throwaway config directory used by scripts/dev-host.sh and
+# scripts/dev-host.ps1.
+.devdata/
+
+# --- Editor and OS noise -----------------------------------------------------
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build output of the optional end-to-end recording window
+# (scripts/smokeinput). It is a test fixture, not a shipped artefact.
+scripts/smokeinput/smokeinput
+scripts/smokeinput/smokeinput.exe
