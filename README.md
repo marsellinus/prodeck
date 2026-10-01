@@ -35,7 +35,8 @@ renders the grid, and presses buttons.
 | Profiles: load, validate, hot reload, export/import | working |
 | Telemetry (CPU, RAM, disk, network) | working |
 | mDNS discovery, TLS with fingerprint pinning | working |
-| Plugins, OBS, visual editor, USB transport | Phase 3–5, see [`docs/ROADMAP.md`](docs/ROADMAP.md) |
+| Desktop GUI with a layout editor | working, see [`docs/GUI.md`](docs/GUI.md) |
+| Plugins, OBS, USB transport | Phase 3–5, see [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 
 Verified on Windows 11: real `SendInput` keystrokes delivered to a real
 application window, driven through the real protocol over a real WebSocket.
@@ -83,9 +84,20 @@ with a fake transport would have caught:
 
 ### 1. Build and run the host
 
+With the desktop control panel:
+
 ```sh
 cd host
 go build -o mobiledeck ./cmd/mobiledeck
+./mobiledeck gui
+```
+
+A window opens with the host status, a layout editor, device management and
+pairing. The host starts inside it and stops when the window closes.
+
+Or headless, for a server:
+
+```sh
 ./mobiledeck run --bind 0.0.0.0
 ```
 
@@ -136,6 +148,7 @@ real CPU load.
 ## Commands
 
 ```
+mobiledeck gui            run the host and open the desktop control panel
 mobiledeck run            run the host in the foreground
 mobiledeck start|stop     run it in the background
 mobiledeck status         where it listens, what is connected, whether pairing is open
@@ -152,8 +165,12 @@ Run `mobiledeck <command> -h` for the flags of any command.
 
 ## Writing a profile
 
-A profile is a directory of JSON. That is the whole editor in Milestone 1, and
-it is deliberately git-friendly: a layout change is a reviewable diff.
+The easy way is the panel: `mobiledeck gui`, then the **Layout** tab. Click an
+empty cell to add a button, pick an action from the host's own list, press Save,
+and it appears on the phone. See [`docs/GUI.md`](docs/GUI.md).
+
+A profile is also a directory of JSON, which is what makes a layout a reviewable
+diff and lets it live in git.
 
 ```
 ~/.config/mobiledeck/profiles/development/profile.json
@@ -301,6 +318,7 @@ which operating system it runs on.** Porting to a new OS means adding files unde
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Threat model, privilege separation, security tests |
 | [`docs/adr/`](docs/adr/) | Why each significant decision was made, and what it cost |
 | [`docs/PLUGIN_DEVELOPMENT.md`](docs/PLUGIN_DEVELOPMENT.md) | Writing a plugin (Phase 3) |
+| [`docs/GUI.md`](docs/GUI.md) | The desktop control panel and the layout editor |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Building and running from source |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | The five phases and what each one owes |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | The rules enforced at review |
