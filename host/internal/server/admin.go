@@ -52,6 +52,16 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		s.adminProfiles(w, r)
 	case len(parts) == 2 && parts[0] == "profiles" && parts[1] == "reload":
 		s.adminProfilesReload(w, r)
+	case len(parts) == 3 && parts[0] == "profiles" && parts[2] == "document":
+		s.adminProfileDocument(w, r, parts[1])
+	case len(parts) == 4 && parts[0] == "profiles" && parts[2] == "pages":
+		s.adminProfilePage(w, r, parts[1], parts[3])
+	case len(parts) == 6 && parts[0] == "profiles" && parts[2] == "pages" && parts[4] == "buttons":
+		s.adminProfileButton(w, r, parts[1], parts[3], parts[5])
+	case len(parts) == 1 && parts[0] == "actions":
+		s.adminActions(w, r)
+	case len(parts) == 1 && parts[0] == "plugins":
+		s.adminPlugins(w, r)
 	case len(parts) == 1 && parts[0] == "pair":
 		s.adminPair(w, r)
 	case len(parts) == 1 && parts[0] == "shutdown":

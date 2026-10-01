@@ -92,6 +92,8 @@ func Run(env Env) int {
 	switch cmd {
 	case "run", "serve":
 		return cmdRun(env, rest)
+	case "gui", "panel":
+		return cmdGUI(env, rest)
 	case "start":
 		return cmdStart(env, rest)
 	case "stop":
@@ -255,6 +257,7 @@ mobiledeck - turn a phone into a stream deck for this machine
 usage: mobiledeck <command> [flags]
 
 commands:
+  gui         run the host and open the desktop control panel
   run         run the host in the foreground
   start       start the host in the background
   stop        stop a background host

@@ -1,0 +1,138 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/mobiledeck/mobiledeck/host/internal/app"
+	"github.com/mobiledeck/mobiledeck/host/internal/gui"
+	"github.com/mobiledeck/mobiledeck/host/internal/store"
+)
+
+// cmdGUI runs the host and opens the desktop control panel.
+//
+// The host is started first, in this process, and the panel is only a client of
+// it. That ordering is deliberate: the panel drives the same loopback admin API
+// the CLI does, so there is one implementation of every operation, and closing
+// the window stops the host rather than leaving an invisible one behind.
+func cmdGUI(env Env, args []string) int {
+	fs, g := newFlagSet(env, "gui", "Run the host and open the desktop control panel.")
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
+	}
+
+	cfg, paths, err := resolve(g)
+	if err != nil {
+		return fail(env, err)
+	}
+
+	if !gui.Available() {
+		fmt.Fprintln(env.Stderr, "mobiledeck: no display is available, so the control panel cannot be opened.")
+		fmt.Fprintln(env.Stderr, "Start the host instead and use the command line, or the panel from a desktop session:")
+		fmt.Fprintf(env.Stderr, "  mobiledeck run --config-dir %s\n", paths.Root)
+		return ExitError
+	}
+
+	// A second instance would fight over the port and the device store.
+	lock, err := store.AcquireLock(paths.PIDFile())
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "mobiledeck: %v\n", err)
+		return ExitAlreadyUp
+	}
+	defer lock.Release()
+
+	// The panel gets its own log sink: a window is not a terminal, so a
+	// structured line per request would be invisible anyway, and the file keeps
+	// the full record for `mobiledeck logs`.
+	h, err := app.Build(cfg, paths, versionOf(env), false)
+	if err != nil {
+		return fail(env, err)
+	}
+	defer h.Close()
+
+	if err := h.Server.Listen(); err != nil {
+		fmt.Fprintf(env.Stderr, "mobiledeck: %v\n", err)
+		return ExitError
+	}
+
+	state := runtimeState{
+		PID:        os.Getpid(),
+		Addr:       h.Server.Addr(),
+		Port:       h.Server.Port(),
+		AdminToken: h.Auth.AdminToken(),
+		StartedAt:  time.Now().UnixMilli(),
+		Version:    versionOf(env),
+		ConfigDir:  paths.Root,
+	}
+	if err := writeRuntimeState(paths.RuntimeFile(), state); err != nil {
+		h.Log.Logger.Warn("could not publish the runtime state; the command line will not find this host", "error", err)
+	}
+	defer os.Remove(paths.RuntimeFile())
+
+	// Serve in the background so the window can open on the main thread, which
+	// the native toolkits require.
+	serveCtx, stopServing := context.WithCancel(context.Background())
+	defer stopServing()
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- h.Server.Serve(serveCtx) }()
+
+	// Wait for the listener to be genuinely reachable before the panel loads:
+	// a window that opens faster than the server answers would show its first
+	// request failing, which looks like a broken host.
+	if !waitForHost(h.Server.Addr(), 5*time.Second) {
+		fmt.Fprintln(env.Stderr, "mobiledeck: the host did not become reachable; see the log file")
+		return ExitError
+	}
+
+	h.Log.Logger.Info("control panel opening", "addr", h.Server.Addr(), "config_dir", paths.Root)
+
+	if err := gui.Run(gui.Options{
+		Addr:  h.Server.Addr(),
+		Token: h.Auth.AdminToken(),
+		Title: fmt.Sprintf("MobileDeck - %s", cfg.HostName),
+	}); err != nil {
+		fmt.Fprintf(env.Stderr, "mobiledeck: %v\n", err)
+		return ExitError
+	}
+
+	// The window closed: stop the host cleanly and report anything Serve hit.
+	stopServing()
+	select {
+	case err := <-serveErr:
+		if err != nil {
+			fmt.Fprintf(env.Stderr, "mobiledeck: %v\n", err)
+			return ExitError
+		}
+	case <-time.After(5 * time.Second):
+	}
+
+	if !g.quiet {
+		fmt.Fprintf(env.Stdout, "control panel closed; the host on %s has stopped\n", h.Server.Addr())
+	}
+	return ExitOK
+}
+
+// writeRuntimeState publishes the same file `mobiledeck run` writes, so the
+// command line can administer a host started from the panel.
+func writeRuntimeState(path string, state runtimeState) error {
+	b, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return store.WriteFileAtomic(path, append(b, '\n'), 0o600)
+}
+
+// waitForHost polls the health endpoint until it answers.
+func waitForHost(addr string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if pingHealth(addr) {
+			return true
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return false
+}

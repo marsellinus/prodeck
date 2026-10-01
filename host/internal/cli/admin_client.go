@@ -187,3 +187,17 @@ type runtimePaths struct {
 	logFile     string
 	root        string
 }
+
+// pingHealth reports whether the host's health endpoint answers. It is used to
+// wait for the listener before showing a window, so the panel's first request
+// cannot race the server.
+func pingHealth(addr string) bool {
+	client := &http.Client{Timeout: 700 * time.Millisecond}
+	resp, err := client.Get("http://" + addr + "/api/v1/health")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.StatusCode == http.StatusOK
+}

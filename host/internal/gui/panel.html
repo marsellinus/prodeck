@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MobileDeck</title>
+<style>
+  :root {
+    --bg: #0e0e12; --panel: #16161c; --panel2: #1c1c22; --line: #2a2a33;
+    --fg: #f2f2f5; --dim: #9a9aa8; --accent: #4c8bf5;
+    --ok: #22c55e; --warn: #eab308; --err: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--err); }
+  .dot.on { background: var(--ok); }
+  .grow { flex: 1; }
+  nav { display: flex; gap: 4px; }
+  nav button {
+    background: transparent; color: var(--dim); border: 0; padding: 7px 12px;
+    border-radius: 7px; cursor: pointer; font: inherit;
+  }
+  nav button:hover { background: var(--panel2); color: var(--fg); }
+  nav button.active { background: var(--accent); color: #fff; }
+  main { padding: 18px; max-width: 1100px; margin: 0 auto; }
+  section { display: none; }
+  section.active { display: block; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 11px; padding: 16px; margin-bottom: 14px;
+  }
+  .card h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase;
+    letter-spacing: .6px; color: var(--dim); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  tr:last-child td { border-bottom: 0; }
+  code, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+  button.btn {
+    background: var(--accent); color: #fff; border: 0; border-radius: 7px;
+    padding: 7px 13px; cursor: pointer; font: inherit;
+  }
+  button.btn.ghost { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); }
+  button.btn.danger { background: var(--err); }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; }
+  input, select, textarea {
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 7px; padding: 7px 9px; font: inherit; width: 100%;
+  }
+  textarea { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; min-height: 80px; }
+  label { display: block; color: var(--dim); font-size: 12px; margin: 8px 0 3px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pill { padding: 2px 8px; border-radius: 999px; background: var(--panel2);
+    border: 1px solid var(--line); font-size: 11.5px; color: var(--dim); }
+  .pill.ok { color: var(--ok); border-color: #14532d; }
+  .pill.warn { color: var(--warn); border-color: #713f12; }
+  .pill.err { color: var(--err); border-color: #7f1d1d; }
+  .grid { display: grid; gap: 8px; }
+  .tile {
+    aspect-ratio: 1; background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 11px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; cursor: pointer; padding: 6px; text-align: center;
+    transition: transform .06s, border-color .12s;
+  }
+  .tile:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .tile.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(76,139,245,.35); }
+  .tile.empty { border-style: dashed; color: var(--dim); }
+  .tile .ico { font-size: 20px; line-height: 1; }
+  .tile .lbl { font-size: 11px; color: var(--fg); word-break: break-word; }
+  .toast {
+    position: fixed; right: 16px; bottom: 16px; background: var(--panel2);
+    border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    padding: 11px 14px; border-radius: 9px; max-width: 460px; display: none; z-index: 50;
+    white-space: pre-wrap; font-size: 13px;
+  }
+  .toast.err { border-left-color: var(--err); }
+  .toast.ok { border-left-color: var(--ok); }
+  .kv { display: grid; grid-template-columns: 190px 1fr; gap: 5px 14px; }
+  .kv div:nth-child(odd) { color: var(--dim); }
+  details summary { cursor: pointer; color: var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="dot"></span>
+  <h1 id="hostname">MobileDeck</h1>
+  <span class="pill" id="addr">…</span>
+  <span class="grow"></span>
+  <nav>
+    <button data-tab="status" class="active">Status</button>
+    <button data-tab="layout">Layout</button>
+    <button data-tab="devices">Devices</button>
+    <button data-tab="pair">Pair</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ── Status ─────────────────────────────────────────────────────── -->
+  <section id="tab-status" class="active">
+    <div class="card">
+      <h2>Host</h2>
+      <div class="kv" id="status-kv"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn ghost" onclick="refreshStatus()">Refresh</button>
+        <button class="btn ghost" onclick="reloadProfiles()">Reload profiles</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Capabilities on this machine</h2>
+      <div class="kv" id="caps-kv"></div>
+      <p style="color:var(--dim);font-size:12.5px">
+        The agent never elevates. Power actions and script execution are refused
+        unless the device holds those scopes, and shutdown/restart also need
+        <code>"confirm": true</code> in the action parameters.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Layout editor ──────────────────────────────────────────────── -->
+  <section id="tab-layout">
+    <div class="card">
+      <h2>Profile</h2>
+      <div class="row">
+        <select id="profile-select" style="max-width:280px" onchange="selectProfile(this.value)"></select>
+        <button class="btn ghost" onclick="newProfile()">New profile</button>
+        <span class="grow"></span>
+        <button class="btn ghost" onclick="exportProfile()">Export JSON</button>
+        <button class="btn ghost" onclick="importProfile()">Import JSON</button>
+        <button class="btn" onclick="saveProfile()">Save</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Pages</h2>
+      <div class="row" id="page-tabs"></div>
+      <div class="row" style="margin-top:10px">
+        <input id="new-page-name" placeholder="New page name" style="max-width:230px">
+        <button class="btn ghost" onclick="addPage()">Add page</button>
+        <button class="btn ghost" onclick="setRootPage()">Make this the root page</button>
+        <button class="btn danger" onclick="deletePage()">Delete this page</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Buttons on <span id="page-label" class="mono"></span></h2>
+      <div class="row" style="margin-bottom:10px">
+        <label style="margin:0">Columns</label>
+        <input id="grid-cols" type="number" min="1" max="16" style="width:80px" onchange="applyGrid()">
+        <label style="margin:0">Rows</label>
+        <input id="grid-rows" type="number" min="1" max="16" style="width:80px" onchange="applyGrid()">
+        <span class="grow"></span>
+        <span style="color:var(--dim);font-size:12px">Click a cell to edit it</span>
+      </div>
+      <div class="grid" id="button-grid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Edit button</h2>
+      <div id="editor-empty" style="color:var(--dim)">Select a cell above.</div>
+      <div id="editor" style="display:none">
+        <div class="row">
+          <div style="flex:1"><label>Label</label><input id="b-label"></div>
+          <div style="flex:1"><label>Icon (emoji or Material name)</label><input id="b-icon"></div>
+        </div>
+        <div class="row">
+          <div style="flex:1"><label>Row</label><input id="b-row" type="number" min="0"></div>
+          <div style="flex:1"><label>Column</label><input id="b-col" type="number" min="0"></div>
+          <div style="flex:1"><label>Column span</label><input id="b-cspan" type="number" min="1"></div>
+          <div style="flex:1"><label>Row span</label><input id="b-rspan" type="number" min="1"></div>
+        </div>
+        <label>Action</label>
+        <select id="b-action" onchange="onActionChange()"></select>
+        <div id="b-params-wrap">
+          <label>Parameters (JSON)</label>
+          <textarea id="b-params" spellcheck="false"></textarea>
+          <div class="row">
+            <button class="btn ghost" onclick="fillExample()">Use example</button>
+            <span style="color:var(--dim);font-size:12px" id="b-scope"></span>
+          </div>
+        </div>
+        <label>Button state</label>
+        <select id="b-state">
+          <option value="momentary">momentary</option>
+          <option value="toggle">toggle</option>
+          <option value="radio">radio</option>
+          <option value="status">status</option>
+          <option value="progress">progress</option>
+          <option value="counter">counter</option>
+          <option value="timer">timer</option>
+          <option value="telemetry">telemetry</option>
+        </select>
+        <div id="b-telemetry" style="display:none">
+          <label>Metric</label>
+          <select id="b-metric"></select>
+          <label>Format</label>
+          <input id="b-format" placeholder="{value:.0f}%">
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" onclick="saveButton()">Save button</button>
+          <button class="btn danger" onclick="deleteButton()">Delete button</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Devices ────────────────────────────────────────────────────── -->
+  <section id="tab-devices">
+    <div class="card">
+      <h2>Paired devices</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Platform</th><th>Scopes</th><th>Status</th><th></th></tr></thead>
+        <tbody id="devices-body"></tbody>
+      </table>
+      <p style="color:var(--dim);font-size:12.5px">
+        Several phones may connect at once, each with its own token and scopes.
+        Revoking deletes the record so the token stops working; disabling keeps it
+        but refuses the connection, which the phone reports as "revoked by the
+        host" rather than asking to pair again.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Pairing ────────────────────────────────────────────────────── -->
+  <section id="tab-pair">
+    <div class="card">
+      <h2>Add a phone</h2>
+      <p style="color:var(--dim)">
+        On the phone: open MobileDeck, enter this machine's address, then the PIN
+        below. Over a cable, run <code>adb reverse tcp:8765 tcp:8765</code> and
+        use <code>127.0.0.1:8765</code>.
+      </p>
+      <div class="row" style="margin:14px 0">
+        <button class="btn" onclick="openPairing()">Open pairing</button>
+        <span class="grow"></span>
+        <span id="pin-display" class="mono" style="font-size:30px;letter-spacing:9px"></span>
+      </div>
+      <div id="pair-note" style="color:var(--dim)"></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── bridge ────────────────────────────────────────────────────────────────
+// Every call goes through the Go side, which holds the admin token. JavaScript
+// never sees it.
+let bridgeReady = false;
+
+async function api(method, path, body) {
+  if (!bridgeReady) throw new Error("the panel bridge is not ready yet");
+  const raw = await md(method, path, body ? JSON.stringify(body) : "");
+  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (parsed.status >= 400) {
+    const b = parsed.body;
+    const msg = (b && (b.message || b.error)) || JSON.stringify(b);
+    throw new Error(msg);
+  }
+  return parsed.body;
+}
+
+function toast(message, kind) {
+  const el = document.getElementById("toast");
+  el.textContent = message;
+  el.className = "toast " + (kind || "");
+  el.style.display = "block";
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = "none"; }, kind === "err" ? 9000 : 3500);
+}
+
+// ── state ─────────────────────────────────────────────────────────────────
+let status = null;
+let actions = [];
+let profiles = [];
+let current = null;      // the profile document being edited
+let currentPage = null;  // page id
+let selected = null;     // button id
+let metrics = [];
+
+// ── tabs ──────────────────────────────────────────────────────────────────
+document.querySelectorAll("nav button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll("section").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    document.getElementById("tab-" + b.dataset.tab).classList.add("active");
+    if (b.dataset.tab === "devices") loadDevices();
+    if (b.dataset.tab === "layout") loadProfiles();
+  };
+});
+
+// ── status ────────────────────────────────────────────────────────────────
+async function refreshStatus() {
+  try {
+    status = await api("GET", "/api/v1/admin/status");
+    document.getElementById("dot").className = "dot on";
+    document.getElementById("hostname").textContent = status.host_name || "MobileDeck";
+    document.getElementById("addr").textContent = status.addr || "";
+    const kv = document.getElementById("status-kv");
+    kv.innerHTML = "";
+    const rows = [
+      ["Host id", status.host_id],
+      ["Address", status.addr],
+      ["Reachable at", (status.addresses || []).join(", ") || "(loopback only)"],
+      ["Version", status.version + "  (" + status.os + ")"],
+      ["TLS", status.tls ? "on, " + status.fingerprint : "off"],
+      ["Uptime", status.uptime_s + "s"],
+      ["Profiles", (status.profiles || []).join(", ")],
+      ["Connected devices", (status.sessions || []).length],
+    ];
+    for (const [k, v] of rows) {
+      kv.insertAdjacentHTML("beforeend",
+        "<div>" + k + "</div><div class='mono'>" + String(v) + "</div>");
+    }
+    loadDevices();
+  } catch (e) {
+    document.getElementById("dot").className = "dot";
+    toast("Cannot reach the host: " + e.message, "err");
+  }
+}
+
+async function loadCapabilities() {
+  try {
+    const info = await api("GET", "/api/v1/admin/actions");
+    actions = info.actions || [];
+    const kv = document.getElementById("caps-kv");
+    const power = await api("GET", "/api/v1/admin/status");
+    kv.innerHTML = "";
+    kv.insertAdjacentHTML("beforeend",
+      "<div>Action types</div><div class='mono'>" + actions.length + "</div>");
+    kv.insertAdjacentHTML("beforeend",
+      "<div>Scopes</div><div class='mono'>" + (info.scopes || []).join(", ") + "</div>");
+    kv.insertAdjacentHTML("beforeend",
+      "<div>Not granted by default</div><div class='mono'>" +
+      (info.high_risk_scopes || []).join(", ") + "</div>");
+    populateActionSelect();
+  } catch (e) { /* the status card already reported the failure */ }
+}
+
+async function reloadProfiles() {
+  try {
+    await api("POST", "/api/v1/admin/profiles/reload");
+    toast("Profiles reloaded", "ok");
+    loadProfiles();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ── devices ───────────────────────────────────────────────────────────────
+async function loadDevices() {
+  try {
+    const data = await api("GET", "/api/v1/admin/devices");
+    const body = document.getElementById("devices-body");
+    body.innerHTML = "";
+    const devices = data.devices || [];
+    if (!devices.length) {
+      body.innerHTML = "<tr><td colspan='5' style='color:var(--dim)'>No devices are paired yet.</td></tr>";
+      return;
+    }
+    for (const d of devices) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + esc(d.name) + "<br><span class='mono' style='color:var(--dim)'>" + esc(d.id) + "</span></td>" +
+        "<td>" + esc(d.platform || "-") + "</td>" +
+        "<td class='mono' style='font-size:11.5px'>" + (d.scopes || []).join(", ") + "</td>" +
+        "<td>" + (d.disabled
+          ? "<span class='pill err'>disabled</span>"
+          : (d.connected ? "<span class='pill ok'>connected</span>" : "<span class='pill'>idle</span>")) + "</td>";
+      const td = document.createElement("td");
+      td.className = "row";
+      td.innerHTML =
+        "<button class='btn ghost' data-a='scopes'>Scopes</button>" +
+        "<button class='btn ghost' data-a='toggle'>" + (d.disabled ? "Enable" : "Disable") + "</button>" +
+        "<button class='btn danger' data-a='revoke'>Revoke</button>";
+      td.querySelector("[data-a=scopes]").onclick = () => editScopes(d);
+      td.querySelector("[data-a=toggle]").onclick = () => toggleDevice(d);
+      td.querySelector("[data-a=revoke]").onclick = () => revokeDevice(d);
+      tr.appendChild(td);
+      body.appendChild(tr);
+    }
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function editScopes(d) {
+  const want = prompt(
+    "Scopes for " + d.name + " (comma separated).\n" +
+    "Available: keyboard, mouse, media, apps, scripts, system.read, system.power, profiles.write, plugins\n" +
+    "scripts and system.power are high risk: they run commands and power off the machine.",
+    (d.scopes || []).join(", "));
+  if (want === null) return;
+  const scopes = want.split(",").map(s => s.trim()).filter(Boolean);
+  try {
+    await api("PUT", "/api/v1/admin/devices/" + encodeURIComponent(d.id) + "/scopes", { scopes });
+    toast("Scopes updated", "ok");
+    loadDevices();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function toggleDevice(d) {
+  try {
+    await api("PATCH", "/api/v1/admin/devices/" + encodeURIComponent(d.id), { disabled: !d.disabled });
+    loadDevices();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function revokeDevice(d) {
+  if (!confirm("Revoke " + d.name + "?\n\nIts token stops working immediately and the phone must pair again.")) return;
+  try {
+    await api("DELETE", "/api/v1/admin/devices/" + encodeURIComponent(d.id));
+    toast("Revoked " + d.name, "ok");
+    loadDevices();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ── pairing ───────────────────────────────────────────────────────────────
+async function openPairing() {
+  try {
+    const r = await api("POST", "/api/v1/admin/pair", {});
+    document.getElementById("pin-display").textContent = r.pin.split("").join(" ");
+    document.getElementById("pair-note").textContent =
+      "Valid for " + r.expires_in_s + " seconds. Enter it on the phone now.";
+    setTimeout(() => {
+      document.getElementById("pin-display").textContent = "";
+      document.getElementById("pair-note").textContent = "The pairing window has closed.";
+    }, r.expires_in_s * 1000);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ── layout editor ─────────────────────────────────────────────────────────
+async function loadProfiles() {
+  try {
+    const data = await api("GET", "/api/v1/admin/profiles");
+    profiles = data.profiles || [];
+    const sel = document.getElementById("profile-select");
+    sel.innerHTML = "";
+    for (const p of profiles) {
+      const o = document.createElement("option");
+      o.value = p.id; o.textContent = p.name + "  (" + p.id + ")";
+      sel.appendChild(o);
+    }
+    if (data.errors && data.errors.length) {
+      toast("Rejected profiles:\n" + data.errors.map(e => e.id + ": " + e.error).join("\n"), "err");
+    }
+    if (profiles.length && !current) {
+      selectProfile(profiles[0].id);
+    } else if (!profiles.length) {
+      document.getElementById("button-grid").innerHTML =
+        "<div style='color:var(--dim)'>No profiles yet. Press “New profile”.</div>";
+    }
+    if (status) {
+      const m = await api("GET", "/api/v1/admin/status");
+      metrics = await metricNames();
+    }
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function metricNames() {
+  try {
+    const info = await api("GET", "/api/v1/admin/status");
+    // The metric list comes from /info, which is not admin-gated; the bridge
+    // refuses it, so the panel asks the host for the same data through the
+    // status payload instead.
+    return info.metrics || [];
+  } catch { return []; }
+}
+
+async function selectProfile(id) {
+  try {
+    current = await api("GET", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document");
+    selected = null;
+    currentPage = current.root_page || (current.pages[0] && current.pages[0].id) || null;
+    document.getElementById("profile-select").value = id;
+    renderPageTabs();
+    renderGrid();
+    renderEditor();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+function renderPageTabs() {
+  const el = document.getElementById("page-tabs");
+  el.innerHTML = "";
+  for (const p of current.pages) {
+    const b = document.createElement("button");
+    b.className = "btn " + (p.id === currentPage ? "" : "ghost");
+    b.textContent = p.name + (p.id === current.root_page ? "  ★" : "");
+    b.onclick = () => { currentPage = p.id; selected = null; renderPageTabs(); renderGrid(); renderEditor(); };
+    el.appendChild(b);
+  }
+}
+
+function page() { return current.pages.find(p => p.id === currentPage); }
+
+function gridFor(p) {
+  return (p && p.grid) || (current.settings && current.settings.grid) || { columns: 4, rows: 5 };
+}
+
+function renderGrid() {
+  const p = page();
+  document.getElementById("page-label").textContent = p ? p.name : "";
+  if (!p) { document.getElementById("button-grid").innerHTML = ""; return; }
+
+  const g = gridFor(p);
+  document.getElementById("grid-cols").value = g.columns;
+  document.getElementById("grid-rows").value = g.rows;
+
+  const grid = document.getElementById("button-grid");
+  grid.style.gridTemplateColumns = "repeat(" + g.columns + ", minmax(0,1fr))";
+  grid.innerHTML = "";
+
+  // One cell per grid position. A button with a span occupies its top-left cell
+  // and the cells it covers are left blank, which is how the client renders it.
+  const occupied = {};
+  for (const b of (p.buttons || [])) {
+    const c = b.cell || { row: 0, column: 0 };
+    occupied[c.row + "," + c.column] = b;
+    for (let r = c.row; r < c.row + (c.row_span || 1); r++)
+      for (let k = c.column; k < c.column + (c.column_span || 1); k++)
+        if (!(r === c.row && k === c.column)) occupied[r + "," + k] = "covered";
+  }
+
+  for (let r = 0; r < g.rows; r++) {
+    for (let c = 0; c < g.columns; c++) {
+      const cell = occupied[r + "," + c];
+      if (cell === "covered") continue;
+      const tile = document.createElement("div");
+      tile.className = "tile" + (cell ? "" : " empty");
+      if (cell && cell.id === selected) tile.classList.add("selected");
+      if (cell) {
+        const icon = cell.icon || {};
+        tile.innerHTML =
+          "<div class='ico'>" + esc(icon.value || "·") + "</div>" +
+          "<div class='lbl'>" + esc(cell.label || cell.id) + "</div>" +
+          "<div class='mono' style='font-size:10px;color:var(--dim)'>" +
+          esc((cell.on_press && cell.on_press.type) || "") + "</div>";
+        tile.onclick = () => { selected = cell.id; renderGrid(); renderEditor(); };
+      } else {
+        tile.textContent = "+";
+        tile.onclick = () => createButtonAt(r, c);
+      }
+      grid.appendChild(tile);
+    }
+  }
+}
+
+function renderEditor() {
+  const p = page();
+  const b = p && (p.buttons || []).find(x => x.id === selected);
+  document.getElementById("editor-empty").style.display = b ? "none" : "block";
+  document.getElementById("editor").style.display = b ? "block" : "none";
+  if (!b) return;
+
+  document.getElementById("b-label").value = b.label || "";
+  document.getElementById("b-icon").value = (b.icon && b.icon.value) || "";
+  const c = b.cell || {};
+  document.getElementById("b-row").value = c.row || 0;
+  document.getElementById("b-col").value = c.column || 0;
+  document.getElementById("b-cspan").value = c.column_span || 1;
+  document.getElementById("b-rspan").value = c.row_span || 1;
+
+  const sel = document.getElementById("b-action");
+  const type = (b.on_press && b.on_press.type) || "";
+  sel.value = type;
+  onActionChange();
+  document.getElementById("b-params").value =
+    b.on_press && b.on_press.params ? JSON.stringify(b.on_press.params, null, 2) : "{}";
+
+  const st = (b.state && b.state.type) || "momentary";
+  document.getElementById("b-state").value = st;
+  onStateChange();
+  if (st === "telemetry") {
+    document.getElementById("b-metric").value = (b.state && b.state.metric) || "";
+    document.getElementById("b-format").value = (b.state && b.state.format) || "";
+  }
+}
+
+function populateActionSelect() {
+  const sel = document.getElementById("b-action");
+  if (!sel || sel.dataset.filled) return;
+  sel.innerHTML = "";
+  for (const a of actions) {
+    const o = document.createElement("option");
+    o.value = a.type;
+    o.textContent = a.type + (a.scope ? "   [" + a.scope + "]" : "");
+    sel.appendChild(o);
+  }
+  sel.dataset.filled = "1";
+}
+
+function onActionChange() {
+  const t = document.getElementById("b-action").value;
+  const a = actions.find(x => x.type === t);
+  document.getElementById("b-scope").textContent =
+    a && a.scope ? "requires the " + a.scope + " scope" : "no scope required";
+}
+
+function fillExample() {
+  const t = document.getElementById("b-action").value;
+  const a = actions.find(x => x.type === t);
+  if (a && a.example) document.getElementById("b-params").value = a.example;
+}
+
+function onStateChange() {
+  const st = document.getElementById("b-state").value;
+  document.getElementById("b-telemetry").style.display = st === "telemetry" ? "block" : "none";
+}
+
+document.getElementById("b-state").onchange = onStateChange;
+
+async function createButtonAt(row, col) {
+  const p = page();
+  if (!p) return;
+  const id = "btn_" + Math.random().toString(36).slice(2, 8);
+  const b = {
+    id, label: "New button",
+    icon: { type: "emoji", value: "·" },
+    cell: { row, column: col, row_span: 1, column_span: 1 },
+    state: { type: "momentary" },
+    on_press: { type: actions.length ? actions[0].type : "noop", params: {} }
+  };
+  p.buttons = p.buttons || [];
+  p.buttons.push(b);
+  selected = b.id;
+  renderGrid();
+  renderEditor();
+}
+
+async function saveButton() {
+  const p = page();
+  const b = (p.buttons || []).find(x => x.id === selected);
+  if (!b) return;
+
+  let params = {};
+  try { params = JSON.parse(document.getElementById("b-params").value || "{}"); }
+  catch (e) { toast("Parameters are not valid JSON: " + e.message, "err"); return; }
+
+  b.label = document.getElementById("b-label").value;
+  const iconVal = document.getElementById("b-icon").value.trim();
+  b.icon = iconVal
+    ? (/^[\x00-\x7F]+$/.test(iconVal) && iconVal.length > 2
+        ? { type: "material", value: iconVal }
+        : { type: "emoji", value: iconVal })
+    : { type: "none" };
+  b.cell = {
+    row: Number(document.getElementById("b-row").value) || 0,
+    column: Number(document.getElementById("b-col").value) || 0,
+    row_span: Number(document.getElementById("b-rspan").value) || 1,
+    column_span: Number(document.getElementById("b-cspan").value) || 1
+  };
+  b.on_press = { type: document.getElementById("b-action").value, params };
+
+  const st = document.getElementById("b-state").value;
+  b.state = { type: st };
+  if (st === "telemetry") {
+    b.state.metric = document.getElementById("b-metric").value.trim();
+    b.state.format = document.getElementById("b-format").value.trim() || "{value:.0f}%";
+    if (!b.state.metric) { toast("A telemetry button needs a metric", "err"); return; }
+  }
+
+  await saveProfile();
+}
+
+async function deleteButton() {
+  const p = page();
+  if (!p || !selected) return;
+  p.buttons = (p.buttons || []).filter(x => x.id !== selected);
+  selected = null;
+  renderGrid();
+  renderEditor();
+  await saveProfile();
+}
+
+async function addPage() {
+  const name = document.getElementById("new-page-name").value.trim();
+  if (!name) { toast("Give the page a name", "err"); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page";
+  if (current.pages.some(p => p.id === id)) { toast("A page with that id already exists", "err"); return; }
+  current.pages.push({ id, name, buttons: [] });
+  currentPage = id;
+  document.getElementById("new-page-name").value = "";
+  renderPageTabs(); renderGrid(); renderEditor();
+  await saveProfile();
+}
+
+async function deletePage() {
+  if (current.pages.length <= 1) { toast("A profile must keep at least one page", "err"); return; }
+  if (currentPage === current.root_page) { toast("The root page cannot be deleted", "err"); return; }
+  if (!confirm("Delete page “" + page().name + "” and its buttons?")) return;
+  current.pages = current.pages.filter(p => p.id !== currentPage);
+  currentPage = current.pages[0].id;
+  renderPageTabs(); renderGrid(); renderEditor();
+  await saveProfile();
+}
+
+async function setRootPage() {
+  current.root_page = currentPage;
+  renderPageTabs();
+  await saveProfile();
+}
+
+async function applyGrid() {
+  const cols = Math.max(1, Math.min(16, Number(document.getElementById("grid-cols").value) || 4));
+  const rows = Math.max(1, Math.min(16, Number(document.getElementById("grid-rows").value) || 5));
+  current.settings = current.settings || {};
+  current.settings.grid = { columns: cols, rows: rows };
+  renderGrid();
+  await saveProfile();
+}
+
+async function saveProfile() {
+  try {
+    current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(current.id) + "/document", current);
+    toast("Saved. Connected phones update immediately.", "ok");
+    renderGrid();
+  } catch (e) {
+    toast("Not saved: " + e.message, "err");
+  }
+}
+
+async function newProfile() {
+  const id = prompt("New profile id (letters, digits, - and _):");
+  if (!id) return;
+  const doc = {
+    schema: 1, id, name: id,
+    icon: { type: "emoji", value: "🎛" },
+    settings: { grid: { columns: 4, rows: 4 }, haptic: true,
+      nav: { breadcrumb: true, back_button: true, page_tabs: true } },
+    root_page: "home",
+    pages: [{ id: "home", name: "Home", buttons: [
+      { id: "hello", label: "Hello", icon: { type: "emoji", value: "👋" },
+        cell: { row: 0, column: 0 }, state: { type: "momentary" },
+        on_press: { type: "deck.notify", params: { message: "hello", level: "info" } } }
+    ]}]
+  };
+  try {
+    current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document", doc);
+    toast("Created " + id, "ok");
+    current = null;
+    loadProfiles();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function exportProfile() {
+  const json = JSON.stringify(current, null, 2);
+  try {
+    await navigator.clipboard.writeText(json);
+    toast("The profile JSON is on your clipboard", "ok");
+  } catch {
+    const w = window.open("", "_blank");
+    w.document.write("<pre>" + esc(json) + "</pre>");
+  }
+}
+
+async function importProfile() {
+  const text = prompt("Paste a profile JSON document:");
+  if (!text) return;
+  try {
+    const doc = JSON.parse(text);
+    current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(doc.id) + "/document", doc);
+    toast("Imported " + doc.id, "ok");
+    current = null;
+    loadProfiles();
+  } catch (e) { toast("Import failed: " + e.message, "err"); }
+}
+
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ── boot ──────────────────────────────────────────────────────────────────
+(async function boot() {
+  // The bridge is injected by the Go side before the page loads; a short poll
+  // avoids a race on a slow first paint.
+  for (let i = 0; i < 50 && typeof md !== "function"; i++) {
+    await new Promise(r => setTimeout(r, 100));
+  }
+  if (typeof md !== "function") {
+    toast("The host bridge did not load. The window is a shell without it.", "err");
+    return;
+  }
+  bridgeReady = true;
+  await refreshStatus();
+  await loadCapabilities();
+  await loadProfiles();
+})();
+</script>
+</body>
+</html>
