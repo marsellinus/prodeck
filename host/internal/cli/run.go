@@ -352,9 +352,15 @@ func cmdDoctor(env Env, args []string) int {
 	add("telemetry", len(metrics) > 0, strings.Join(metrics, ", "))
 
 	// Sound is a capability the platform adapter answers for itself, and the
-	// directory is where a soundboard file must live to be playable. Reporting
-	// both together means a user who cannot find their files sees the path.
-	add("sound playback", plat.Sound.SoundAvailable(), cfg.SoundsDir)
+	// directory is where a soundboard file must live to be playable. When
+	// playback is unavailable the directory is beside the point, so the detail
+	// says what is missing instead of showing a path that looks fine.
+	soundOK := plat.Sound.SoundAvailable()
+	soundDetail := cfg.SoundsDir
+	if !soundOK {
+		soundDetail = "this host cannot play sound files; soundboard buttons will fail here (" + cfg.SoundsDir + ")"
+	}
+	add("sound playback", soundOK, soundDetail)
 
 	caps := plat.Power.Capabilities()
 	add("lock screen", caps.Lock, "")

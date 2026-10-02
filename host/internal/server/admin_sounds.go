@@ -56,11 +56,18 @@ func (s *Server) adminSounds(w http.ResponseWriter, r *http.Request) {
 			if e.IsDir() || !sounds.IsAudio(e.Name()) {
 				continue
 			}
-			mime, _ := sounds.MIME(e.Name())
-			info, err := e.Info()
-			if err != nil {
+			// The listing must show exactly what can play. An entry that is a
+			// symlink out of the directory (or a broken one) resolves nowhere
+			// useful, and offering it would be a square that fails on press.
+			path, ok := s.confineSound(dir, e.Name())
+			if !ok {
 				continue
 			}
+			info, err := os.Stat(path)
+			if err != nil || info.IsDir() {
+				continue
+			}
+			mime, _ := sounds.MIME(e.Name())
 			out = append(out, soundView{
 				File:  e.Name(),
 				Name:  sounds.DisplayName(e.Name()),
@@ -105,6 +112,10 @@ func (s *Server) adminSoundUpload(w http.ResponseWriter, r *http.Request) {
 
 	name, err := sounds.CleanName(body.Name)
 	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_argument", err.Error())
+		return
+	}
+	if err := checkWritableName(name); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_argument", err.Error())
 		return
 	}
@@ -282,6 +293,34 @@ func (s *Server) soundsDir() (string, error) {
 		return "", fmt.Errorf("creating the sounds directory: %w", err)
 	}
 	return abs, nil
+}
+
+// checkWritableName rejects a name the host's filesystem cannot store, so an
+// upload of one is a clear 400 rather than a 500 from the write. On Windows that
+// means the reserved device names (CON, NUL, COM1…) and the characters the
+// filesystem forbids; the check is applied on every platform so a file that
+// works on one is not silently unusable on another.
+func checkWritableName(name string) error {
+	stem := strings.TrimSuffix(name, filepath.Ext(name))
+	if isWindowsReserved(stem) {
+		return fmt.Errorf("%q is a reserved device name on Windows; choose another file name", name)
+	}
+	if strings.ContainsAny(name, `<>:"|?*`) {
+		return fmt.Errorf("%q contains a character no filesystem accepts; rename the file", name)
+	}
+	return nil
+}
+
+// isWindowsReserved reports whether a file name stem is one of the names
+// Windows reserves for devices.
+func isWindowsReserved(stem string) bool {
+	switch strings.ToUpper(stem) {
+	case "CON", "PRN", "AUX", "NUL",
+		"COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+		"LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9":
+		return true
+	}
+	return false
 }
 
 // pathWithin reports whether child is root or lives inside it.

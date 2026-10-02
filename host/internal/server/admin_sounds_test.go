@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -156,6 +157,12 @@ func TestAdminSoundsRejectsBadUploads(t *testing.T) {
 	if code, body := uploadSound(t, ts, "boom.wav", nil); code != http.StatusBadRequest {
 		t.Errorf("an empty file returned %d: %s", code, body)
 	}
+	// Names a filesystem cannot store are a 400, not a 500 from the write.
+	for _, bad := range []string{"con.wav", "NUL.wav", `a<b.wav`, "a:b.wav", "a?b.wav"} {
+		if code, body := uploadSound(t, ts, bad, raw); code != http.StatusBadRequest {
+			t.Errorf("the name %q returned %d, want 400: %s", bad, code, body)
+		}
+	}
 
 	// A body whose data is not base64 is refused before anything is written.
 	bad := fmt.Sprintf(`{"name":"boom.wav","data":"not base64!!"}`)
@@ -169,6 +176,23 @@ func TestAdminSoundsRejectsBadUploads(t *testing.T) {
 	}
 	if code, body := uploadSound(t, ts, "boom.wav", raw); code != http.StatusConflict {
 		t.Errorf("a duplicate upload returned %d, want 409: %s", code, body)
+	}
+}
+
+// TestAdminSoundsRefusesAnOversizedFile covers the per-file cap, which is what
+// keeps a sound previewable: a file above it would encode past the panel
+// bridge's read limit. The body cap test above covers a different thing.
+func TestAdminSoundsRefusesAnOversizedFile(t *testing.T) {
+	ts := newTestServer(t, &recordingInput{})
+
+	oversized := make([]byte, sounds.MaxFileBytes+1)
+	copy(oversized, "RIFF")
+	copy(oversized[8:], "WAVE")
+	if code, body := uploadSound(t, ts, "huge.wav", oversized); code != http.StatusBadRequest {
+		t.Fatalf("a file over the cap returned %d, want 400: %s", code, body)
+	}
+	if entries, err := os.ReadDir(filepath.Join(ts.dir, "sounds")); err == nil && len(entries) != 0 {
+		t.Errorf("an oversized upload left %d files behind", len(entries))
 	}
 }
 
@@ -271,5 +295,128 @@ func TestAdminSoundsConfinesPaths(t *testing.T) {
 	}
 	if _, err := os.Stat(secret); err != nil {
 		t.Error("a traversal delete removed a file outside the sounds directory")
+	}
+}
+
+// TestAdminSoundsListShowsOnlyPlayableFiles checks that an entry the preview
+// could not serve (a symlink out of the directory, a broken link, a directory
+// named like a sound) is not offered, so the panel never shows a row that fails
+// when pressed.
+func TestAdminSoundsListShowsOnlyPlayableFiles(t *testing.T) {
+	ts := newTestServer(t, &recordingInput{})
+	dir := filepath.Join(ts.dir, "sounds")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "good.wav"), wavBytes(), 0o600); err != nil {
+		t.Fatalf("writing the good sound: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "trap.wav"), 0o700); err != nil {
+		t.Fatalf("mkdir trap: %v", err)
+	}
+	// A broken link and a link pointing outside; both are unplayable.
+	_ = os.Symlink(filepath.Join(dir, "missing.wav"), filepath.Join(dir, "broken.wav"))
+	secret := filepath.Join(ts.dir, "secret.wav")
+	if err := os.WriteFile(secret, wavBytes(), 0o600); err != nil {
+		t.Fatalf("writing the secret: %v", err)
+	}
+	_ = os.Symlink(secret, filepath.Join(dir, "escape.wav"))
+
+	code, body := adminDo(t, ts, http.MethodGet, "/api/v1/admin/sounds", "")
+	if code != http.StatusOK {
+		t.Fatalf("GET /sounds: %d %s", code, body)
+	}
+	var list struct {
+		Sounds []struct {
+			File string `json:"file"`
+		} `json:"sounds"`
+	}
+	if err := json.Unmarshal(body, &list); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	if len(list.Sounds) != 1 || list.Sounds[0].File != "good.wav" {
+		t.Fatalf("list = %+v, want only good.wav", list.Sounds)
+	}
+}
+
+// TestAdminSoundsAudioRefusesASymlinkEscape covers the subtle read escape: a
+// link planted in the sounds directory that points at a file elsewhere must not
+// be served, because the name check alone would accept it.
+func TestAdminSoundsAudioRefusesASymlinkEscape(t *testing.T) {
+	ts := newTestServer(t, &recordingInput{})
+
+	secret := filepath.Join(ts.dir, "secret.wav")
+	if err := os.WriteFile(secret, wavBytes(), 0o600); err != nil {
+		t.Fatalf("writing the secret: %v", err)
+	}
+	dir := filepath.Join(ts.dir, "sounds")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.Symlink(secret, filepath.Join(dir, "escape.wav")); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+
+	code, body := adminDo(t, ts, http.MethodGet, "/api/v1/admin/sounds/escape.wav/audio", "")
+	if code == http.StatusOK {
+		t.Fatalf("the audio endpoint served a file outside the sounds directory: %s", body)
+	}
+	if code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", code)
+	}
+}
+
+// TestAdminSoundsDeleteRejectsADirectory checks that a directory whose name
+// happens to end in an audio extension is reported as "not found" rather than
+// producing a 500 from trying to unlink it.
+func TestAdminSoundsDeleteRejectsADirectory(t *testing.T) {
+	ts := newTestServer(t, &recordingInput{})
+	dir := filepath.Join(ts.dir, "sounds")
+	if err := os.MkdirAll(filepath.Join(dir, "trap.wav"), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	if code, body := adminDo(t, ts, http.MethodDelete, "/api/v1/admin/sounds/trap.wav", ""); code != http.StatusNotFound {
+		t.Fatalf("DELETE of a directory returned %d, want 404: %s", code, body)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "trap.wav")); err != nil {
+		t.Error("the directory was removed")
+	}
+}
+
+// TestAdminSoundsDeleteIsCaseInsensitiveOnWindows covers a real platform trap:
+// the filesystem is case-insensitive there, so a profile naming "Boom.wav" and
+// a delete of "boom.wav" are the same file, and the reference check must agree
+// or it would let the delete through and break the button.
+func TestAdminSoundsDeleteIsCaseInsensitiveOnWindows(t *testing.T) {
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		t.Skip("this host's filesystem is case-sensitive")
+	}
+	ts := newTestServer(t, &recordingInput{})
+	if code, body := uploadSound(t, ts, "boom.wav", wavBytes()); code != http.StatusCreated {
+		t.Fatalf("upload: %d %s", code, body)
+	}
+
+	code, body := adminDo(t, ts, http.MethodGet, "/api/v1/admin/profiles/development/document", "")
+	if code != http.StatusOK {
+		t.Fatalf("GET document: %d %s", code, body)
+	}
+	var doc profile.Profile
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	// The profile references the lower-case name; the delete uses a different
+	// case of the same file.
+	doc.Pages[0].Buttons[0].OnPress = &profile.Action{
+		Type:   "sound.play",
+		Params: json.RawMessage(`{"file":"boom.wav"}`),
+	}
+	updated, _ := json.Marshal(doc)
+	if code, body := adminDo(t, ts, http.MethodPut, "/api/v1/admin/profiles/development/document", string(updated)); code != http.StatusOK {
+		t.Fatalf("PUT document: %d %s", code, body)
+	}
+
+	if code, body := adminDo(t, ts, http.MethodDelete, "/api/v1/admin/sounds/BOOM.WAV", ""); code != http.StatusConflict {
+		t.Fatalf("DELETE with a different case returned %d, want 409: %s", code, body)
 	}
 }

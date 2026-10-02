@@ -55,6 +55,12 @@ func (a *soundPlay) Run(ctx context.Context, req Request) (Result, error) {
 	if err := decodeParams(req.Params, &p); err != nil {
 		return Result{}, err
 	}
+	// The Sound adapter is a field on Platform, so a hand-built Platform that
+	// predates it would be nil here. A clear unsupported error beats a panic
+	// that the server would only turn into a generic 500.
+	if a.plat.Sound == nil {
+		return Result{}, fmt.Errorf("%w: this host has no sound adapter", platform.ErrUnsupported)
+	}
 	path, name, err := a.resolve(p.File)
 	if err != nil {
 		return Result{}, err

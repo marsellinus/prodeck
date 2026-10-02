@@ -17,10 +17,14 @@ import (
 	"strings"
 )
 
-// MaxFileBytes caps one sound file. It is 8 MiB because that is also the cap on
-// the desktop panel's bridge read (internal/gui): a larger file would be
-// silently truncated while previewing, so it is refused at upload instead.
-const MaxFileBytes = 8 << 20
+// MaxFileBytes caps one sound file. It is 5 MiB, chosen so the file can actually
+// be previewed: the desktop panel's bridge reads at most 8 MiB (internal/gui),
+// and the audio endpoint returns the file base64-encoded, which inflates it by
+// 4/3. 5 MiB becomes about 6.7 MiB of JSON, which leaves room for the envelope
+// and any header growth. A larger cap would let a file upload and then fail to
+// preview, because the bridge would truncate the JSON and the panel could not
+// parse it. TestMaxFileBytesFitsTheBridgeRead pins that relationship.
+const MaxFileBytes = 5 << 20
 
 // MaxUploadBodyBytes caps the JSON body of an upload. Base64 inflates by 4/3,
 // so the body limit sits above MaxFileBytes with room for the envelope.
