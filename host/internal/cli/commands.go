@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -561,6 +564,8 @@ var _ = json.Marshal
 // remembers it.
 func cmdToken(env Env, args []string) int {
 	fs, g := newFlagSet(env, "token", "Print the key the browser panel asks for.")
+	open := fs.Bool("open", false,
+		"open the panel in a browser with the key already in the address, so it does not have to be pasted")
 	if code, ok := parseFlags(fs, args); !ok {
 		return code
 	}
@@ -588,9 +593,48 @@ func cmdToken(env Env, args []string) int {
 			"panel_url":   "http://" + state.Addr + "/",
 		})
 	}
+	if *open {
+		// The key is per-process and dies with the host, so a browser that
+		// remembers one is holding a dead credential after every restart. Opening
+		// the page with the key in the fragment skips the paste entirely: the
+		// fragment is not sent to the server and not written to any log, and the
+		// page clears it from the address bar once it has read it.
+		url := "http://" + state.Addr + "/#key=" + url.QueryEscape(state.AdminToken)
+		if err := openInBrowser(url); err != nil {
+			fmt.Fprintf(env.Stderr, "mobiledeck: could not open a browser: %v\n", err)
+			fmt.Fprintln(env.Stderr, "open this yourself:")
+			fmt.Fprintln(env.Stdout, url)
+			return ExitError
+		}
+		if !g.quiet {
+			fmt.Fprintf(env.Stderr, "opened %s in your browser\n", "http://"+state.Addr+"/")
+		}
+		return ExitOK
+	}
+
 	fmt.Fprintln(env.Stdout, state.AdminToken)
 	if !g.quiet {
 		fmt.Fprintf(env.Stderr, "\nopen the panel at http://%s/ and paste this when it asks.\n", state.Addr)
+		fmt.Fprintf(env.Stderr, "or run this again with --open to skip the pasting.\n")
 	}
 	return ExitOK
+}
+
+// openInBrowser hands a URL to whatever this machine uses for one.
+//
+// The panel is the only caller, and it passes a URL carrying the admin key in
+// its fragment, so nothing here may log or echo the argument.
+func openInBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		// rundll32 is used rather than `cmd /c start`, which would re-parse the
+		// URL: a key containing & or ^ would be split by the shell.
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Start()
 }

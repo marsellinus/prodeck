@@ -562,6 +562,27 @@ tbody tr:hover { background: var(--surface-2); }
   if (typeof window.md === "function") return;
   const KEY = "mobiledeck.admin.token";
   window.mdBridgeMode = "browser";
+
+  // A key in the fragment comes from `mobiledeck token --open`. It is stored and
+  // then removed from the address bar, so it is not left on screen or in the
+  // history of whoever is looking over the user's shoulder.
+  //
+  // This listens for later changes as well as reading it once: pasting the new
+  // URL into a tab that already has the page open is a same-document navigation,
+  // so the page does not reload and a one-time read would silently do nothing.
+  const takeKey = () => {
+    const key = new URLSearchParams(location.hash.replace(/^#/, "")).get("key");
+    if (!key) return false;
+    localStorage.setItem(KEY, key);
+    history.replaceState(null, "", location.pathname + location.search);
+    return true;
+  };
+  takeKey();
+  // A second key arriving in an already-open tab is a same-document navigation:
+  // the page does not reload by itself, so this reloads it once the key is in
+  // place. Without it, pasting the command's URL did nothing at all.
+  window.addEventListener("hashchange", () => { if (takeKey()) location.reload(); });
+
   window.md = async function (method, path, body) {
     const token = localStorage.getItem(KEY) || "";
     const opts = { method: method, headers: {} };
@@ -609,10 +630,13 @@ function askForToken(why) {
   // key again and wonder why nothing changed.
   const lead = why === "stale"
     ? "The program was restarted since this page last asked, and it issues a new key " +
-      "every time it starts. Run <b>mobiledeck token</b> in a terminal and paste the new one."
+      "every time it starts. Run <b>mobiledeck token --open</b> in a terminal: it opens " +
+      "this page again with the new key already in it. Or run <b>mobiledeck token</b> " +
+      "and paste what it prints."
     : "This page talks to the program running on this computer, and it " +
-      "needs the key that program printed when it started. Run <b>mobiledeck token</b> " +
-      "in a terminal and paste what it prints.";
+      "needs the key that program printed when it started. Run <b>mobiledeck token --open</b> " +
+      "in a terminal to open this page with the key already in it, or run " +
+      "<b>mobiledeck token</b> and paste what it prints.";
   wrap.innerHTML =
     "<div class='modal' style='width:min(520px,100%)'>" +
       "<h2>" + (why === "stale" ? "The key has changed" : "One thing first") + "</h2>" +
