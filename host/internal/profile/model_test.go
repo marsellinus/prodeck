@@ -16,6 +16,7 @@ func testActionTypes(t string) bool {
 		strings.HasPrefix(t, "media."), strings.HasPrefix(t, "volume."),
 		strings.HasPrefix(t, "deck."), strings.HasPrefix(t, "system."),
 		t == "noop", t == "delay", t == "macro", t == "run_script",
+		t == "sound.play",
 		t == "launch_application", t == "open_url", t == "open_terminal":
 		return true
 	}
@@ -562,10 +563,57 @@ func TestImageIconFiles(t *testing.T) {
 	}
 }
 
+// TestSoundFiles walks every place a sound can hide. The delete check in the
+// admin API trusts this list, so a reference it misses is a button that silently
+// stops working when the file is removed.
+func TestSoundFiles(t *testing.T) {
+	raw := `{
+	  "schema": 1, "id": "test", "name": "Test",
+	  "settings": {"grid": {"columns": 3, "rows": 3}},
+	  "pages": [{"id": "home", "name": "Home", "buttons": [
+	    {"id":"a","label":"A","icon":{"type":"emoji","value":"x"},
+	     "cell":{"row":0,"column":0},"state":{"type":"momentary"},
+	     "on_press":{"type":"sound.play","params":{"file":"one.wav"}}},
+	    {"id":"b","label":"B","icon":{"type":"emoji","value":"x"},
+	     "cell":{"row":0,"column":1},"state":{"type":"momentary"},
+	     "on_press":{"type":"sound.play","params":{"file":"one.wav"}},
+	     "on_long_press":{"type":"sound.play","params":{"file":"two.mp3"}}},
+	    {"id":"c","label":"C","icon":{"type":"emoji","value":"x"},
+	     "cell":{"row":0,"column":2},"state":{"type":"momentary"},
+	     "on_press":{"type":"macro","params":{"steps":[
+	        {"type":"sound.play","params":{"file":"three.ogg"}},
+	        {"type":"noop","params":{}}
+	     ]}}}
+	  ]}]
+	}`
+	p, err := Load([]byte(raw), testActionTypes)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	got := p.SoundFiles()
+	want := []string{"one.wav", "two.mp3", "three.ogg"}
+	if len(got) != len(want) {
+		t.Fatalf("SoundFiles = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("file %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	// A profile that plays nothing must report nothing, so the admin API does
+	// not refuse a delete for an unrelated reason.
+	if files := (&Profile{}).SoundFiles(); len(files) != 0 {
+		t.Errorf("an empty profile reported sounds: %v", files)
+	}
+}
+
 // TestIconsFieldIsNotPersistedInTheFile checks that the computed map is optional
 // on input: a hand-written profile never contains it, and loading one must not
 // fail.
-func TestIconsFieldIsNotPersistedInTheFile(t *testing.T) {	p, err := Load([]byte(minimal()), testActionTypes)
+func TestIconsFieldIsNotPersistedInTheFile(t *testing.T) {
+	p, err := Load([]byte(minimal()), testActionTypes)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
