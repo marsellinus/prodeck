@@ -583,9 +583,11 @@ async function api(method, path, body) {
   if (!ready) throw new Error("still starting up");
   const raw = await md(method, path, body ? JSON.stringify(body) : "");
   const res = typeof raw === "string" ? JSON.parse(raw) : raw;
-  if (res.status === 401 && window.mdBridgeMode === "browser" && !localStorage.getItem("mobiledeck.admin.token")) {
-    askForToken();
-    throw new Error("This page needs the key from the command line first.");
+  if (res.status === 401 && window.mdBridgeMode === "browser") {
+    // The token is per-process, so a remembered one dies with the host. Ask for
+    // the new one instead of failing every press with the same message.
+    askForToken(localStorage.getItem("mobiledeck.admin.token") ? "stale" : "missing");
+    throw new Error("The key this page was using is no longer valid.");
   }
   if (res.status >= 400) {
     const b = res.body;
@@ -597,17 +599,24 @@ async function api(method, path, body) {
 // A browser tab cannot be handed the admin token the way the window can, so the
 // user pastes it once. It is kept in local storage, which is why the host is
 // reachable from the same machine only: the token is a full-power credential.
-function askForToken() {
+function askForToken(why) {
   if (document.getElementById("token-gate")) return;
   const wrap = document.createElement("div");
   wrap.id = "token-gate";
   wrap.className = "scrim open";
+  // The two cases read differently: a first visit needs explaining, and a host
+  // that was restarted needs the reason, or the user will paste the same dead
+  // key again and wonder why nothing changed.
+  const lead = why === "stale"
+    ? "The program was restarted since this page last asked, and it issues a new key " +
+      "every time it starts. Run <b>mobiledeck token</b> in a terminal and paste the new one."
+    : "This page talks to the program running on this computer, and it " +
+      "needs the key that program printed when it started. Run <b>mobiledeck token</b> " +
+      "in a terminal and paste what it prints.";
   wrap.innerHTML =
     "<div class='modal' style='width:min(520px,100%)'>" +
-      "<h2>One thing first</h2>" +
-      "<p class='sub'>This page talks to the program running on this computer, and it " +
-      "needs the key that program printed when it started. Run <b>mobiledeck token</b> " +
-      "in a terminal and paste what it prints.</p>" +
+      "<h2>" + (why === "stale" ? "The key has changed" : "One thing first") + "</h2>" +
+      "<p class='sub'>" + lead + "</p>" +
       "<input class='mono' id='token-input' placeholder='paste the key here' autocomplete='off'>" +
       "<div class='row' style='justify-content:flex-end;margin-top:14px'>" +
         "<button class='btn' id='token-save'>Continue</button>" +
@@ -790,19 +799,30 @@ async function previewSound(row, file) {
 
 async function addSoundToBoard(file) {
   // A sound needs a square. Use the first free one, or say so.
+  const cell = firstFreeCell();
+  if (!cell) { toast("This screen is full. Add another screen first.", "warn"); return; }
+  await addSquare(cell.row, cell.column, "sound.play", { file: file });
+}
+
+// firstFreeCell returns the first cell no square covers, or null.
+//
+// Every cell a square occupies counts as taken, not just its top-left one: a
+// square two columns wide covers two cells, and placing something in the second
+// is an overlap the host refuses.
+function firstFreeCell() {
   const s = screen();
-  if (!s) return;
+  if (!s) return null;
   const g = grid();
-  const used = new Set((s.buttons || []).map(b => b.cell.row + "," + b.cell.column));
-  for (let r = 0; r < g.rows; r++) {
-    for (let c = 0; c < g.columns; c++) {
-      if (!used.has(r + "," + c)) {
-        await addSquare(r, c, "sound.play", { file: file });
-        return;
-      }
-    }
+  const taken = new Set();
+  for (const b of (s.buttons || [])) {
+    const c = b.cell || { row: 0, column: 0 };
+    for (let r = c.row; r < c.row + (c.row_span || 1); r++)
+      for (let k = c.column; k < c.column + (c.column_span || 1); k++) taken.add(r + "," + k);
   }
-  toast("This screen is full. Add another screen first.", "warn");
+  for (let r = 0; r < g.rows; r++)
+    for (let c = 0; c < g.columns; c++)
+      if (!taken.has(r + "," + c)) return { row: r, column: c };
+  return null;
 }
 
 async function removeSound(file) {
