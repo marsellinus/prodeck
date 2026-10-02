@@ -604,11 +604,32 @@ class ProtocolVersionTest {
         }
     }
 
-    /** An unclassified close reports a reason rather than an empty string. */
+    /**
+     * A disabled device must be explained in terms the user can act on.
+     *
+     * The assertion pins the meaning rather than a phrase, because the wording
+     * is user-facing and may be reworded: 4403 is the code that means "your
+     * computer turned this phone off, and you have to turn it back on", and a
+     * rewrite that lost either half would leave the reader with a dead deck and
+     * no next step. It must also stay distinct from 4401, which sends the user
+     * back to pairing instead.
+     */
     @Test
     fun `close info explains a known code`() {
         val info = CloseInfo(4403, "revoked")
-        assertTrue(info.known!!.explanation.contains("revoked"))
+        val explanation = info.known!!.explanation
+        assertTrue(
+            "4403 must say the phone was turned off on the computer: $explanation",
+            explanation.contains("turned off", ignoreCase = true),
+        )
+        assertTrue(
+            "4403 must say where to turn it back on: $explanation",
+            explanation.contains("control panel", ignoreCase = true),
+        )
+        assertTrue(
+            "4403 must not send the user to pairing, which is 4401's job: $explanation",
+            !explanation.contains("PIN", ignoreCase = true),
+        )
     }
 }
 

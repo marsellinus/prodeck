@@ -148,19 +148,37 @@ class PairingApi(private val json: Json = ProtocolJson) {
 
         val body = try {
             get(url, normalizedPin)
-        } catch (e: IOException) {
-            throw PairingException(e.message ?: "could not reach the host", "unreachable")
+        } catch (_: IOException) {
+            // The transport's own text ("failed to connect to /192.168.1.10:8765")
+            // is a socket error and means nothing to the reader, so it is
+            // dropped. The address stays, without its scheme: it is how the user
+            // tells which computer failed, and `https://` is noise on a phone
+            // screen. The scheme is stripped outside the template because Kotlin
+            // does not allow an escaped quote inside `${...}`.
+            val shown = baseUrl.substringAfter("://")
+            throw PairingException(
+                "Could not reach your computer at $shown.",
+                "unreachable",
+            )
         }
 
         val info = try {
             json.decodeFromString(HostInfoResponse.serializer(), body)
-        } catch (e: Exception) {
-            throw PairingException("host sent an unreadable /api/v1/info: ${e.message}", "bad_info")
+        } catch (_: Exception) {
+            throw PairingException(
+                "Your computer answered with something this app could not read.",
+                "bad_info",
+            )
         }
 
         if (!info.protocol.intersectsV1) {
+            // The two version numbers are the only concrete thing to act on —
+            // they say which side is older — so they stay, spelled out rather
+            // than as "1..1".
             throw PairingException(
-                "host speaks protocol ${info.protocol.min}..${info.protocol.max}; this app speaks $PROTOCOL_VERSION",
+                "This app and your computer are too different to work together: " +
+                    "the app speaks version $PROTOCOL_VERSION, your computer expects " +
+                    "version ${info.protocol.min} to ${info.protocol.max}. Update whichever is older.",
                 "protocol_mismatch",
             )
         }
@@ -168,16 +186,35 @@ class PairingApi(private val json: Json = ProtocolJson) {
         // docs/SECURITY.md T9: a rogue host that advertises TLS but presents no
         // verifiable identity must not be able to harvest a PIN.
         if (info.tls.enabled && normalizedPin == null) {
+            // The message says what went wrong and stops there: the error card
+            // prints its own sentence in front of it. The word "fingerprint"
+            // appears in brackets because that is what the card's advice line is
+            // chosen by — a message that stops naming the case silently loses its
+            // advice — and a term of art is only allowed here when it comes with
+            // a word saying what it is for, which "security code" is.
             throw PairingException(
-                "host requires TLS but no fingerprint is known; pair from the discovered list",
+                "Your computer is using a secure connection, and this app does not have its " +
+                    "security code (fingerprint) yet.",
                 "no_pin",
             )
         }
         if (info.tls.enabled && normalizedPin != null) {
             val advertised = normalizeFingerprint(info.tls.fingerprint)
             if (advertised.isNotEmpty() && advertised != normalizedPin) {
+                // A security refusal, not a hiccup: the code this phone holds and
+                // the code this computer is presenting disagree, so the app
+                // cannot tell whether this is the same machine. The two hex
+                // values are deliberately not printed — they mean nothing to the
+                // reader — and the wording must not soften into "try again":
+                // that is exactly the case the pin exists to stop. The
+                // instruction stays in the sentence rather than being left to
+                // the card, because the card's generic advice for a failed
+                // connection is to retry, which is the one thing the reader must
+                // not do here.
                 throw PairingException(
-                    "host advertises fingerprint $advertised but this device is pinned to $normalizedPin",
+                    "This phone has a different security code (fingerprint) for your computer than " +
+                        "the one it is showing now, so this may not be your computer. Do not continue " +
+                        "unless you reinstalled MobileDeck on it.",
                     "fingerprint_changed",
                 )
             }
@@ -206,27 +243,42 @@ class PairingApi(private val json: Json = ProtocolJson) {
             when (result.status) {
                 200, 201 -> try {
                     json.decodeFromString(PairResponse.serializer(), result.body)
-                } catch (e: Exception) {
-                    throw PairingException("host returned an unreadable pairing reply: ${e.message}", "bad_pair_reply")
+                } catch (_: Exception) {
+                    // No "PIN" in this sentence on purpose: the error card picks
+                    // its advice by matching words in the message, and the PIN
+                    // advice would tell the user to retype a PIN that the
+                    // computer had already accepted.
+                    throw PairingException(
+                        "Your computer's answer could not be read by this app. Try again.",
+                        "bad_pair_reply",
+                    )
                 }
 
                 401, 403 -> {
                     val err = runCatching {
                         json.decodeFromString(PairErrorResponse.serializer(), result.body)
                     }.getOrNull()
+                    // The host's own sentence wins when it sent one: it knows
+                    // whether the PIN was wrong, expired or already used, and it
+                    // is the only side that can tell those apart. Our fallback
+                    // says what went wrong and stops, because the error card
+                    // prints its own line telling the user to ask for a new PIN.
                     throw PairingException(
-                        err?.message?.takeIf { it.isNotBlank() } ?: "PIN is wrong, expired, or already used",
+                        err?.message?.takeIf { it.isNotBlank() } ?: "That PIN did not work.",
                         err?.error ?: "invalid_pin",
                         err?.attemptsRemaining,
                     )
                 }
 
                 429 -> throw PairingException(
-                    "too many attempts; ask the host for a new PIN",
+                    "Too many wrong PINs, so your computer has stopped accepting them for a moment.",
                     "rate_limited",
                 )
 
-                else -> throw PairingException("host refused pairing (HTTP ${result.status})", "http_${result.status}")
+                else -> throw PairingException(
+                    "Your computer refused to set up this phone.",
+                    "http_${result.status}",
+                )
             }
         }
 

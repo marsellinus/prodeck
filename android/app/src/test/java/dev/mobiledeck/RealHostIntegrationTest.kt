@@ -445,8 +445,8 @@ class RealHostIntegrationTest {
 
     /**
      * A disabled device is refused with 4403, which the client treats differently
-     * from a revocation: the record still exists, so the UI can say "revoked by
-     * the host" rather than "pair again".
+     * from a revocation: the record still exists, so the UI can say "turned off
+     * on your computer" rather than "pair again".
      */
     @Test
     fun `a disabled device is refused with 4403`() {

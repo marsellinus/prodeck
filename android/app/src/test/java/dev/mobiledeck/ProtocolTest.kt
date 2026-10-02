@@ -403,7 +403,7 @@ class ProtocolTest {
         // 4401 Unauthenticated: wipe the token, return to pairing.
         assertTrue(policy.getValue(4401).reconnect)
         assertTrue(policy.getValue(4401).wipesToken)
-        // 4403 Device disabled: do not reconnect; show "revoked by host".
+        // 4403 Device disabled: do not reconnect; show "turned off on your computer".
         assertTrue(!policy.getValue(4403).reconnect)
         // 4408 Idle timeout: reconnect immediately, once.
         assertTrue(policy.getValue(4408).reconnect)

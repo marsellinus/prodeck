@@ -103,16 +103,25 @@ enum class CloseCode(val code: Int) {
     val usesBackoff: Boolean
         get() = this == TRY_AGAIN_LATER || this == RATE_LIMITED || this == UNAUTHENTICATED
 
-    /** Human-readable reason surfaced in the connection banner. */
+    /**
+     * The sentence the connection banner shows for this code.
+     *
+     * It is written for the person holding the phone, not for whoever reads the
+     * log: no protocol terms, no "client", no instructions to run a command. The
+     * banner already prints a separate line saying what to do about a dropped
+     * connection, so these only have to say what happened — and two of them
+     * (4401 and 4403) also reach the error card as `DeckUiState.error`, which is
+     * why the code that needs the user to act keeps a word saying so.
+     */
     val explanation: String
         get() = when (this) {
-            NORMAL -> "Host closed the session."
-            TRY_AGAIN_LATER -> "Host is busy or shutting down."
-            MALFORMED -> "The client sent a malformed handshake. This is a bug."
-            UNAUTHENTICATED -> "Token rejected or revoked. Pair again."
-            DEVICE_DISABLED -> "This device was revoked by the host."
-            IDLE_TIMEOUT -> "Idle timeout; reconnecting."
-            RATE_LIMITED -> "Rate limited by the host."
+            NORMAL -> "Your computer ended the connection."
+            TRY_AGAIN_LATER -> "Your computer is busy or shutting down."
+            MALFORMED -> "This phone and your computer could not understand each other. Updating the app should fix it."
+            UNAUTHENTICATED -> "This phone's access was revoked by your computer."
+            DEVICE_DISABLED -> "This phone was turned off on your computer. Turn it back on in the control panel there."
+            IDLE_TIMEOUT -> "The connection went quiet, so your computer closed it."
+            RATE_LIMITED -> "Your computer is too busy for new connections right now."
         }
 
     companion object {

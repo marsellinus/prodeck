@@ -276,7 +276,11 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
      */
     fun connectManual(address: String, defaultPort: Int = DEFAULT_HOST_PORT) {
         val candidate = parseManualHost(address, defaultPort) ?: run {
-            _state.update { it.copy(error = "Could not read \"$address\". Use host or host:port.") }
+            // The typed address is not echoed: it is still in the field the user
+            // just used, and the example is what they need to compare it with.
+            _state.update {
+                it.copy(error = "That address does not look right. Write it like 192.168.1.10 or 192.168.1.10:8765.")
+            }
             return
         }
         manualDiscovery.offer(candidate)
@@ -341,12 +345,12 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
      * would hand the PIN to whatever answered on that address.
      *
      * It then repeats while the host reports pairing closed. A single probe was a
-     * real bug: the natural order for a user is to connect first and run
-     * `mobiledeck pair` afterwards, and with one probe the PIN field stayed
-     * disabled for the life of the screen — the user could see the instruction
-     * "run `mobiledeck pair`" but could never act on it. Polling also picks up
-     * the PIN's expiry, so the field disables itself again when the window
-     * closes instead of accepting a code the host will reject.
+     * real bug: the natural order for a user is to connect first and press
+     * "Show a PIN" on the computer afterwards, and with one probe the PIN field
+     * stayed disabled for the life of the screen — the user could see the
+     * instruction to open the control panel but could never act on it. Polling
+     * also picks up the PIN's expiry, so the field disables itself again when the
+     * window closes instead of accepting a code the host will reject.
      */
     private suspend fun awaitPin(host: DiscoveredHost) {
         _state.update {
@@ -384,10 +388,14 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
                         expiresInS = probe.info.pairing.expiresInS,
                         ready = true,
                     ),
+                    // The banner is a status line, not an instruction: the
+                    // pairing card right below it already says what to press on
+                    // the computer, and repeating that here would print the same
+                    // sentence twice on one screen.
                     status = if (open) {
-                        "Enter the PIN shown on $name"
+                        "Ready for the PIN from $name"
                     } else {
-                        "This host is not accepting pairing. Run `mobiledeck pair` on it."
+                        "Waiting for you to press “Show a PIN” on $name"
                     },
                 )
             }
@@ -409,7 +417,7 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
         val probe = try {
             pairingApi.probe(host.baseUrl(), host.fingerprint.takeIf { it.isNotBlank() })
         } catch (e: PairingException) {
-            failPairing(e.message ?: "could not reach the host")
+            failPairing(e.message ?: "Could not reach your computer.")
             return
         }
 
@@ -423,8 +431,13 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
         val paired = try {
             pairingApi.pair(probe, pin, device)
         } catch (e: PairingException) {
-            val suffix = e.attemptsRemaining?.let { " ($it attempts left)" }.orEmpty()
-            failPairing((e.message ?: "pairing failed") + suffix)
+            // "attempts left" is the count the host gave, and it is worth the
+            // space: it is the difference between trying the next digit and
+            // walking to the computer.
+            val suffix = e.attemptsRemaining?.let {
+                if (it == 1) " One try left." else " $it tries left."
+            }.orEmpty()
+            failPairing((e.message ?: "That PIN did not work.") + suffix)
             return
         }
 
@@ -636,7 +649,20 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
                 encodeToJson(ProfileGetPayload(profileId)),
             )
         } catch (e: Exception) {
-            _state.update { it.copy(error = e.message) }
+            // A ProtocolError's own message is "code: message", which is the
+            // shape a developer wants in a log. The code is not something a
+            // reader can act on, so the host's sentence is shown on its own.
+            // `internal` is excluded because the client builds those sentences
+            // itself ("host did not answer profile.get in 20000ms"), and a bug
+            // report is not something to put in front of a user; they get the
+            // plain sentence instead. Anything that is not a ProtocolError at
+            // all — a socket failure, a lost connection — is exception text and
+            // never reaches the card either.
+            val protocol = e as? ProtocolError
+            val shown = protocol?.payload?.message
+                ?.takeIf { it.isNotBlank() && protocol.payload.code != ErrorCode.INTERNAL }
+                ?: "Could not get your board from the computer."
+            _state.update { it.copy(error = shown) }
             return
         }
 
@@ -697,6 +723,8 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
             CloseCode.NORMAL -> _state.update {
                 it.copy(
                     connection = ConnectionState.Disconnected,
+                    // The strip below this adds what to do about it, so this
+                    // line says only what happened.
                     status = "Disconnected.",
                 )
             }
@@ -756,9 +784,14 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
         }
 
         _state.update {
+            // The explanation is already a full sentence about the drop, and the
+            // strip's own line says that a retry is happening; appending
+            // "Reconnecting…" here would say it a second time and push the host
+            // name off the end of a two-line banner. An unclassified drop gets
+            // the bare word, because there is nothing specific to report.
             it.copy(
                 connection = ConnectionState.Reconnecting,
-                status = "${info.known?.explanation ?: "Connection lost."} Reconnecting…",
+                status = info.known?.explanation ?: "Connection lost. Reconnecting…",
             )
         }
 
@@ -956,7 +989,12 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
                 it.copy(error = event.payload.message.ifBlank { event.payload.code })
             }
 
-            is ClientEvent.Malformed -> _state.update { it.copy(error = "Host sent an unreadable frame.") }
+            // "Host" and "frame" are both developer words. This is the deck's
+            // error card, and the one thing the reader can act on is that the
+            // app and the computer disagreed about a message.
+            is ClientEvent.Malformed -> _state.update {
+                it.copy(error = "This app and your computer could not understand each other.")
+            }
 
             // Handled by the session loop, which owns reconnection.
             is ClientEvent.Closed, is ClientEvent.Ping, is ClientEvent.Unknown -> Unit
@@ -1189,8 +1227,9 @@ class DeckStore(application: Application) : AndroidViewModel(application) {
          *
          * Faster once the window is open, so a code that was just issued is
          * accepted immediately; slower while it is closed, because the common
-         * case is a user staring at the screen deciding to run `mobiledeck pair`,
-         * and a tight loop there would be pure noise against the host.
+         * case is a user staring at the screen deciding to press "Show a PIN" on
+         * the computer, and a tight loop there would be pure noise against the
+         * host.
          */
         const val PAIRING_POLL_OPEN_MS = 2_000L
         const val PAIRING_POLL_CLOSED_MS = 4_000L
