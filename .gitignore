@@ -40,7 +40,14 @@ config.json
 # Config directory bind-mounted into the optional agent container by
 # docker-compose.yml (./data:/data). Machine-local runtime state, never
 # committed.
-data/
+#
+# The leading slash is load-bearing. An unanchored `data/` matches at every
+# depth, so it also swallowed the Android client's main package directory
+# (android/app/src/main/java/dev/mobiledeck/data/) — already-tracked files kept
+# working, but the next new file added there was ignored silently and would have
+# been missing from every clone. Anchor it to the repository root; do not
+# shorten it back to `data/`.
+/data/
 
 # --- Editor and OS noise -----------------------------------------------------
 .idea/
