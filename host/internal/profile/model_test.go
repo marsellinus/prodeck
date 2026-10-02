@@ -565,8 +565,7 @@ func TestImageIconFiles(t *testing.T) {
 // TestIconsFieldIsNotPersistedInTheFile checks that the computed map is optional
 // on input: a hand-written profile never contains it, and loading one must not
 // fail.
-func TestIconsFieldIsNotPersistedInTheFile(t *testing.T) {
-	p, err := Load([]byte(minimal()), testActionTypes)
+func TestIconsFieldIsNotPersistedInTheFile(t *testing.T) {	p, err := Load([]byte(minimal()), testActionTypes)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}

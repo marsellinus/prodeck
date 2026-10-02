@@ -524,11 +524,20 @@ performed** (see `docs/SECURITY.md` §4).
 |------|--------|
 | `sound.play` | `file` (a bare file name in the host's sounds directory), `volume: 0..100` (optional), `blocking` (optional, default `false`) |
 
-`file` is resolved inside the host's sounds directory and nowhere else; the
-accepted extensions are the ones the admin sound API stores (`.wav`, `.mp3`,
-`.ogg`, `.flac`, `.m4a`, `.aac`, `.opus`). A platform that cannot decode a
-format, or cannot apply a volume level (Windows `PlaySound` has no volume
-control), says so in the action result rather than pretending.
+`file` is the name **with its extension** (`boom.wav`), and it is resolved inside
+the host's sounds directory and nowhere else: a name containing a separator or a
+parent reference is refused, and the resolved path is checked against the
+directory after symlinks are followed. The admin sound API stores `.wav`, `.mp3`,
+`.ogg`, `.flac`, `.m4a`, `.aac` and `.opus`.
+
+What the host can actually play is narrower than what it stores, and the
+difference is stated rather than discovered at press time. Windows plays through
+`PlaySoundW`, which decodes WAV and nothing else, so any other format is refused
+by name in the result. `PlaySoundW` also has no volume parameter, so a requested
+`volume` is not applied there and the result says so.
+
+A file a profile still references cannot be deleted through the admin API: the
+reference check walks every button action, including the steps of a macro.
 
 ### system
 `system.stats { metric }` *(p: system.read)*, `system.info` *(p: system.read)*,

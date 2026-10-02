@@ -31,11 +31,12 @@ renders the grid, and presses buttons.
 | Android client (Kotlin + Compose) | 53 tests pass, 9 against a real host; see the note below |
 | Protocol v1 | frozen, documented in [`docs/PROTOCOL.md`](docs/PROTOCOL.md) |
 | Pairing, tokens, scopes, rate limits, audit | working |
-| Actions: keyboard, mouse, apps, scripts, media, system, flow, navigation | 37 types |
+| Actions: keyboard, mouse, apps, scripts, media, soundboard, system, flow, navigation | 38 types |
 | Profiles: load, validate, hot reload, export/import | working |
 | Telemetry (CPU, RAM, disk, network) | working |
 | mDNS discovery, TLS with fingerprint pinning | working |
 | Desktop GUI with a layout editor | working, see [`docs/GUI.md`](docs/GUI.md) |
+| Soundboard (press a tile, a sound plays on the host) | working; Windows plays WAV only, and says so |
 | Plugins, OBS, USB transport | Phase 3–5, see [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 
 Verified on Windows 11: real `SendInput` keystrokes delivered to a real

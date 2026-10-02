@@ -224,11 +224,12 @@ func (s *Server) adminSoundAudio(w http.ResponseWriter, r *http.Request, file st
 		writeError(w, http.StatusNotFound, "not_found", "no sound "+file)
 		return
 	}
-	// The path is joined from a validated bare name, so it cannot escape the
-	// directory; the check below makes that guarantee explicit at the point the
-	// file is read rather than relying on the reader remembering it.
-	path := filepath.Join(dir, name)
-	if !pathWithin(dir, path) {
+	// The name is a bare file name, but the directory entry itself can be a
+	// symlink pointing anywhere. Resolve both sides and compare, so a link
+	// planted in the sounds directory cannot turn this into an arbitrary-file
+	// read. The sound.play action does the same check for the same reason.
+	path, ok := s.confineSound(dir, name)
+	if !ok {
 		writeError(w, http.StatusNotFound, "not_found", "no sound "+file)
 		return
 	}
@@ -243,6 +244,24 @@ func (s *Server) adminSoundAudio(w http.ResponseWriter, r *http.Request, file st
 		"mime": mime,
 		"data": base64.StdEncoding.EncodeToString(raw),
 	})
+}
+
+// confineSound resolves one file name inside the sounds directory, following
+// symlinks on both sides so a link cannot point out of it. It reports ok=false
+// when the entry is missing or escapes.
+func (s *Server) confineSound(dir, name string) (string, bool) {
+	root, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", false
+	}
+	resolved, err := filepath.EvalSymlinks(filepath.Join(root, name))
+	if err != nil {
+		return "", false
+	}
+	if !pathWithin(root, resolved) {
+		return "", false
+	}
+	return resolved, true
 }
 
 // soundsDir returns the absolute sounds directory, creating it if needed.

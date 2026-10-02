@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -301,19 +302,32 @@ func (r *Registry) SoundReferenced(file string) bool {
 	}
 	r.mu.RLock()
 	docs := make([]*profile.Profile, 0, len(r.entries))
-	for _, e := range r.entries {
-		docs = append(docs, e.Doc)
+	for i := range r.order {
+		if e, ok := r.entries[r.order[i]]; ok {
+			docs = append(docs, e.Doc)
+		}
 	}
 	r.mu.RUnlock()
 
 	for _, doc := range docs {
 		for _, used := range doc.SoundFiles() {
-			if used == file {
+			if sameFileName(used, file) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// sameFileName compares two sound file names the way the host's filesystem
+// does. Windows and macOS are case-insensitive, so a profile naming "Boom.wav"
+// and a delete of "boom.wav" are the same file there; comparing byte-for-byte
+// would let the delete through and leave a button pointing at nothing.
+func sameFileName(a, b string) bool {
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
 }
 
 // Revision is a content hash of a profile document, used by the client to tell
