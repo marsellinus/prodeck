@@ -102,6 +102,8 @@ func Run(env Env) int {
 		return cmdRestart(env, rest)
 	case "status":
 		return cmdStatus(env, rest)
+	case "token", "key":
+		return cmdToken(env, rest)
 	case "devices":
 		return cmdDevices(env, rest)
 	case "profiles":
@@ -263,6 +265,7 @@ commands:
   stop        stop a background host
   restart     stop then start
   status      show whether a host is running and where it listens
+  token       print the key the browser panel asks for
   pair        open a pairing window and print the PIN
   devices     list, rename, enable, disable, revoke or re-scope paired devices
   profiles    list, reload, export or import deck profiles

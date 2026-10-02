@@ -494,6 +494,31 @@ tbody tr:hover { background: var(--surface-2); }
 <div class="toast" id="toast"></div>
 
 <script>
+// The desktop window and a plain browser both load this page.
+//
+// The window injects a native md() bridge, and there the admin token never
+// reaches JavaScript. A browser has no such bridge, so this shim supplies the
+// same function against the admin API: the address is wherever the page was
+// served from, and the token is one the user pastes, kept in local storage. The
+// bridge's contract is what keeps the two modes identical — a method, a path and
+// a JSON body in, a string out.
+(function () {
+  if (typeof window.md === "function") return;
+  const KEY = "mobiledeck.admin.token";
+  window.mdBridgeMode = "browser";
+  window.md = async function (method, path, body) {
+    const token = localStorage.getItem(KEY) || "";
+    const opts = { method: method, headers: {} };
+    if (token) opts.headers["Authorization"] = "Bearer " + token;
+    if (body) { opts.headers["Content-Type"] = "application/json"; opts.body = body; }
+    const res = await fetch(path, opts);
+    const text = await res.text();
+    let parsed = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch (_) { parsed = { message: text }; }
+    return JSON.stringify({ status: res.status, body: parsed });
+  };
+})();
+
 // ── talk to the host ──────────────────────────────────────────────────────
 // Every call goes through the Go side, which holds the admin token. JavaScript
 // never sees the token.
@@ -502,11 +527,47 @@ async function api(method, path, body) {
   if (!ready) throw new Error("still starting up");
   const raw = await md(method, path, body ? JSON.stringify(body) : "");
   const res = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (res.status === 401 && window.mdBridgeMode === "browser" && !localStorage.getItem("mobiledeck.admin.token")) {
+    askForToken();
+    throw new Error("This page needs the key from the command line first.");
+  }
   if (res.status >= 400) {
     const b = res.body;
     throw new Error((b && (b.message || b.error)) || JSON.stringify(b));
   }
   return res.body;
+}
+
+// A browser tab cannot be handed the admin token the way the window can, so the
+// user pastes it once. It is kept in local storage, which is why the host is
+// reachable from the same machine only: the token is a full-power credential.
+function askForToken() {
+  if (document.getElementById("token-gate")) return;
+  const wrap = document.createElement("div");
+  wrap.id = "token-gate";
+  wrap.className = "scrim open";
+  wrap.innerHTML =
+    "<div class='modal' style='width:min(520px,100%)'>" +
+      "<h2>One thing first</h2>" +
+      "<p class='sub'>This page talks to the program running on this computer, and it " +
+      "needs the key that program printed when it started. Run <b>mobiledeck token</b> " +
+      "in a terminal and paste what it prints.</p>" +
+      "<input class='mono' id='token-input' placeholder='paste the key here' autocomplete='off'>" +
+      "<div class='row' style='justify-content:flex-end;margin-top:14px'>" +
+        "<button class='btn' id='token-save'>Continue</button>" +
+      "</div>" +
+    "</div>";
+  document.body.appendChild(wrap);
+  const input = wrap.querySelector("#token-input");
+  input.focus();
+  const save = () => {
+    const v = input.value.trim();
+    if (!v) return;
+    localStorage.setItem("mobiledeck.admin.token", v);
+    location.reload();
+  };
+  wrap.querySelector("#token-save").onclick = save;
+  input.onkeydown = ev => { if (ev.key === "Enter") save(); };
 }
 function toast(msg, kind) {
   const el = document.getElementById("toast");
@@ -595,7 +656,12 @@ function fmtUptime(s) {
 // ── sounds ────────────────────────────────────────────────────────────────
 async function loadSounds() {
   try {
-    const data = await api("GET", "/api/v1/admin/sounds");
+    const data = await api("GET", "/api/v1/admin/sounds").catch(e => {
+      // The sound list is an optional part of the host: a build without it
+      // answers 404, and the panel should say "no sounds yet" rather than fail.
+      if (/unknown admin endpoint|not_found/i.test(e.message)) return { sounds: [], dir: "" };
+      throw e;
+    });
     sounds = data.sounds || [];
     document.getElementById("sounds-dir").value = data.dir || "";
     document.getElementById("sounds-hint").textContent = sounds.length
@@ -624,19 +690,27 @@ async function loadSounds() {
   } catch (e) { toast(e.message, "err"); }
 }
 
-// Preview locally, from the host, so the user hears the file before binding it.
+// Preview from the host so the user hears the file before binding it.
+//
+// The bytes arrive base64-encoded in JSON rather than as a plain audio response:
+// the panel's only way to reach the host is md.call, which returns the body as a
+// string, and the admin token is deliberately kept out of JavaScript. A data URL
+// is how those bytes become something the audio element can play.
 let previewEl = null;
-function previewSound(row, file) {
+async function previewSound(row, file) {
   if (previewEl) { previewEl.pause(); previewEl = null; }
   document.querySelectorAll(".sound-row.playing").forEach(r => r.classList.remove("playing"));
-  const audio = new Audio("/api/v1/admin/sounds/" + encodeURIComponent(file) + "/audio");
-  previewEl = audio;
   row.classList.add("playing");
-  audio.onended = audio.onerror = () => row.classList.remove("playing");
-  audio.play().catch(() => {
+  try {
+    const data = await api("GET", "/api/v1/admin/sounds/" + encodeURIComponent(file) + "/audio");
+    const audio = new Audio("data:" + (data.mime || "audio/wav") + ";base64," + data.data);
+    previewEl = audio;
+    audio.onended = audio.onerror = () => row.classList.remove("playing");
+    await audio.play();
+  } catch (e) {
     row.classList.remove("playing");
-    toast("Could not play that file here. It may still work on the phone.", "warn");
-  });
+    toast("Could not play that here: " + e.message, "warn");
+  }
 }
 
 async function addSoundToBoard(file) {
@@ -648,7 +722,7 @@ async function addSoundToBoard(file) {
   for (let r = 0; r < g.rows; r++) {
     for (let c = 0; c < g.columns; c++) {
       if (!used.has(r + "," + c)) {
-        await addSquare(r, c, "sound.play", { file: file.replace(/\.(wav|mp3|ogg|flac|m4a|aac|opus)$/i, "") });
+        await addSquare(r, c, "sound.play", { file: file });
         return;
       }
     }
@@ -1082,7 +1156,9 @@ async function addSquare(row, col, actionType, params, w) {
     // has to satisfy the host's identifier rules (letters, digits, . - _).
     id: (actionType.split(".").pop().replace(/[^A-Za-z0-9]/g, "") + "_" +
          Math.random().toString(36).slice(2, 8)).slice(0, 48),
-    label: actionType === "sound.play" && params.file ? titleCase(params.file) : label,
+    label: actionType === "sound.play" && params.file
+      ? titleCase(params.file.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " "))
+      : label,
     icon: { type: "emoji", value: (w && w.icon) || ACTION_ICON[actionType] || "·" },
     cell: { row, column: col, row_span: 1, column_span: 1 },
     state: { type: "momentary" },

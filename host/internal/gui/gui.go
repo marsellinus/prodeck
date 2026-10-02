@@ -13,7 +13,6 @@ package gui
 
 import (
 	"bytes"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,9 +23,6 @@ import (
 
 	webview "github.com/webview/webview_go"
 )
-
-//go:embed panel.html
-var panelHTML string
 
 // Options configures the window.
 type Options struct {
@@ -66,7 +62,7 @@ func Run(opts Options) error {
 		return fmt.Errorf("gui: binding the admin bridge: %w", err)
 	}
 
-	w.SetHtml(panelHTML)
+	w.SetHtml(panelPage)
 	w.Run()
 	return nil
 }

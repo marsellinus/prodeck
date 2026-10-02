@@ -551,3 +551,46 @@ func countButtons(p *profile.Profile) int {
 }
 
 var _ = json.Marshal
+
+// cmdToken prints the admin token the browser panel asks for.
+//
+// The desktop window never needs this: it is handed the token in-process. The
+// browser cannot be, because the token is a full-power credential for the admin
+// API and a page on the LAN is exactly where it must not leak. So the user runs
+// this once on the machine, pastes the value into the panel, and the browser
+// remembers it.
+func cmdToken(env Env, args []string) int {
+	fs, g := newFlagSet(env, "token", "Print the key the browser panel asks for.")
+	if code, ok := parseFlags(fs, args); !ok {
+		return code
+	}
+	_, paths, err := resolve(g)
+	if err != nil {
+		return fail(env, err)
+	}
+
+	_, state, err := connectRuntime(runtimePathsFor(paths))
+	if err != nil {
+		if errors.Is(err, errHostUnreachable) {
+			// A token only exists while the host runs: it is generated per
+			// process, so there is nothing to print when nothing is listening.
+			fmt.Fprintf(env.Stderr, "mobiledeck: %v\n", err)
+			fmt.Fprintln(env.Stderr, "the key belongs to a running host, so start it first")
+			return ExitNotRunning
+		}
+		return fail(env, err)
+	}
+
+	if g.json {
+		return emitJSON(env, map[string]any{
+			"admin_token": state.AdminToken,
+			"addr":        state.Addr,
+			"panel_url":   "http://" + state.Addr + "/",
+		})
+	}
+	fmt.Fprintln(env.Stdout, state.AdminToken)
+	if !g.quiet {
+		fmt.Fprintf(env.Stderr, "\nopen the panel at http://%s/ and paste this when it asks.\n", state.Addr)
+	}
+	return ExitOK
+}

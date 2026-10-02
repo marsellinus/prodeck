@@ -10,6 +10,7 @@ import (
 
 	"github.com/mobiledeck/mobiledeck/host/internal/auth"
 	"github.com/mobiledeck/mobiledeck/host/internal/engine"
+	"github.com/mobiledeck/mobiledeck/host/internal/gui"
 	"github.com/mobiledeck/mobiledeck/host/internal/proto"
 	"github.com/mobiledeck/mobiledeck/host/internal/tlsutil"
 )
@@ -291,9 +292,18 @@ func (s *Server) features() []string {
 // handleRoot serves a small plain-text banner on the root path. It exists so
 // that pointing a browser at the host answers the obvious question ("is it
 // running?") without requiring the CLI.
+//
+// In a browser the panel is served instead, and the same page talks to the admin
+// API directly with the token the user pasted. The desktop window does not use
+// this path: it loads the panel from the binary and proxies calls through its own
+// bridge, because there the token must not reach JavaScript.
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
+		return
+	}
+	if gui.AcceptsHTML(r) {
+		gui.ServePanel(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")

@@ -155,11 +155,20 @@ if ($elevated -and -not $AllowElevated) {
 
 # --- platform ----------------------------------------------------------------
 
-$arch = switch ($env:PROCESSOR_ARCHITECTURE) {
+# PROCESSOR_ARCHITEW6432 is set when a 32-bit process runs on a 64-bit OS (WOW64)
+# and carries the real OS architecture; PROCESSOR_ARCHITECTURE then describes the
+# process. Prefer the OS one, so an ARM64 machine is not handed an emulated x64
+# binary just because it launched a 32-bit PowerShell.
+$processArch = $env:PROCESSOR_ARCHITECTURE
+if ($env:PROCESSOR_ARCHITEW6432) {
+    $processArch = $env:PROCESSOR_ARCHITEW6432
+}
+
+$arch = switch ($processArch) {
     'AMD64' { 'amd64' }
     'ARM64' { 'arm64' }
     'x86'   { '386' }
-    default { Die "unsupported architecture: $env:PROCESSOR_ARCHITECTURE" }
+    default { Die "unsupported architecture: $processArch" }
 }
 $goos = 'windows'
 

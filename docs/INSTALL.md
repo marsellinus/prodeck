@@ -55,11 +55,12 @@ PATH. Open a new terminal afterwards for the PATH change to take effect.
 ### 1.2 From a release (once published)
 
 > **This form requires the repository to be published.** It downloads
-> `releases/latest/download/mobiledeck_<os>_<arch>.tar.gz` from GitHub and
-> verifies its SHA-256 against the `checksums.txt` in the same release. Until
-> the repository has a remote and a release, the download returns 404 and the
-> script says exactly that. Publishing is a two-line edit: set `REPO_OWNER` and
-> `REPO_NAME` at the top of each script to the real owner and repository name.
+> `releases/latest/download/mobiledeck_<os>_<arch>.tar.gz` (a `.zip` on
+> Windows) from GitHub and verifies its SHA-256 against the `checksums.txt` in
+> the same release. Until the repository has a remote and a release, the
+> download returns 404 and the script says exactly that. Publishing is a
+> two-line edit: set `REPO_OWNER` and `REPO_NAME` at the top of each script to
+> the real owner and repository name.
 
 The published one-liner form, once those two lines are set:
 
