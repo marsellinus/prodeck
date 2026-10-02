@@ -161,6 +161,16 @@ tbody tr:hover { background: var(--surface-2); }
 .pad .handle { position: absolute; top: 5px; right: 7px; color: var(--fg-faint); font-size: 11px;
   opacity: 0; transition: opacity .12s; }
 .pad:hover .handle { opacity: 1; }
+/* Removing a square has to be findable without opening anything. The control
+   appears on hover, on the corner opposite the drag handle, and is the only red
+   thing on the board so it does not read as another thing to press by accident. */
+.pad .kill { position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; padding: 0;
+  display: flex; align-items: center; justify-content: center; border-radius: 7px;
+  border: 1px solid transparent; background: var(--surface-3); color: var(--fg-faint);
+  font-size: 12px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .12s, color .12s, border-color .12s; }
+.pad:hover .kill { opacity: 1; }
+.pad .kill:hover { color: var(--err); border-color: var(--err); background: var(--surface); }
+.pad .kill:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 1px; }
 .pad .badge { position: absolute; top: 6px; left: 7px; font-size: 9.5px; padding: 1px 6px;
   border-radius: 999px; background: var(--surface-3); color: var(--fg-faint); }
 .pad .wave { position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%);
@@ -194,6 +204,43 @@ tbody tr:hover { background: var(--surface-2); }
 .modal .foot { padding: 13px 20px; border-top: 1px solid var(--line); display: flex; gap: 9px; justify-content: flex-end; }
 
 .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+
+/* The form a choice leads to. It lives inside the same modal as the list of
+   choices, so going back is one button and the user never loses their place. */
+.ask { display: grid; gap: 16px; }
+.ask .combo { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border: 1px solid var(--line); background: var(--surface-2); color: var(--fg-dim);
+  border-radius: 999px; padding: 7px 15px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: border-color .12s var(--ease), color .12s var(--ease), background .12s var(--ease); }
+.chip:hover { border-color: var(--accent); color: var(--fg); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ask .preview { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 19px;
+  font-weight: 700; letter-spacing: .04em; padding: 13px 16px; border-radius: var(--r);
+  background: var(--surface-2); border: 1px solid var(--line); text-align: center; }
+/* The recorder takes the keystroke instead of the page, so pressing Ctrl+W here
+   records a shortcut rather than closing the window. */
+.rec { padding: 22px 16px; border-radius: var(--r); border: 2px dashed var(--line);
+  background: var(--surface-2); text-align: center; cursor: pointer; outline: none;
+  transition: border-color .12s var(--ease), background .12s var(--ease); }
+.rec:hover { border-color: var(--accent); }
+.rec.live { border-style: solid; border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
+.rec .chord { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 21px;
+  font-weight: 700; letter-spacing: .05em; min-height: 26px; }
+.rec .say { font-size: 12px; color: var(--fg-faint); margin-top: 7px; }
+.rec .kbd { display: inline-block; min-width: 22px; padding: 2px 8px; margin: 0 3px;
+  border-radius: 6px; background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 1px 0 var(--line); }
+.cat { display: grid; gap: 14px; max-height: 320px; overflow: auto; padding: 2px; }
+.cat h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--fg-faint); }
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px;
+  max-height: 292px; overflow: auto; padding: 2px; }
+.pick-grid button { text-align: left; padding: 11px 13px; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); cursor: pointer;
+  font-size: 13px; font-weight: 600; }
+.pick-grid button:hover { border-color: var(--accent); }
+.pick-grid button .d { display: block; font-weight: 400; font-size: 11px; color: var(--fg-faint); margin-top: 3px; }
 .choice { display: block; padding: 15px; background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r); cursor: pointer; text-align: left; font: inherit; color: var(--fg);
   transition: border-color .14s var(--ease), transform .08s var(--ease); }
@@ -262,13 +309,14 @@ tbody tr:hover { background: var(--surface-2); }
     <!-- ── Board ───────────────────────────────────────────────────────── -->
     <section id="tab-board" class="active">
       <p class="lede">
-        This is what your phone will show. Press a square to change it, drag one to
-        move it, or drop a sound on it to make it a soundboard pad.
+        This is what your phone will show. Press an empty square to add a button or a
+        soundboard pad, press a filled one to change it, or drag one onto another to
+        swap their places.
       </p>
 
       <div class="card">
         <h2>Your board</h2>
-        <p class="sub" id="board-hint">Changes are saved automatically and appear on the phone within a second.</p>
+        <p class="sub" id="board-hint">Press an empty square to add something to it. Hover a square and press ✕ to remove it. Changes are saved automatically and appear on the phone within a second.</p>
         <div class="board-head">
           <select id="board-select" style="max-width:300px" onchange="switchBoard(this.value)"></select>
           <button class="btn ghost sm" onclick="newBoard()">Start a new board</button>
@@ -347,8 +395,9 @@ tbody tr:hover { background: var(--surface-2); }
     <!-- ── Sounds ─────────────────────────────────────────────────────── -->
     <section id="tab-sounds">
       <p class="lede">
-        A sound here can be put on any square. Add your own files, then drag one onto
-        the board, or press a square and choose it.
+        Add your own files here, then press “Put on the board” to drop one on the first
+        free square, or drag a sound onto any square — including one that already has
+        something on it, which it will replace.
       </p>
 
       <div class="card">
@@ -457,6 +506,13 @@ tbody tr:hover { background: var(--surface-2); }
         <div class="row">
           <span class="pill" id="e-action"></span>
           <button class="btn ghost sm" onclick="openWhat()">Change</button>
+        </div>
+      </div>
+      <div class="field" id="e-keys-wrap" style="display:none">
+        <span>Which keys</span>
+        <div class="rec" id="e-keys-rec" tabindex="0">
+          <div class="chord" id="e-keys-chord"></div>
+          <div class="say">Click here, then press the keys you want</div>
         </div>
       </div>
       <div class="field" id="e-params-wrap"><span>Options <span class="hint">— filled in for you; you can ignore it</span></span>
@@ -596,19 +652,19 @@ applyTheme((() => { try { return localStorage.getItem("md.theme") || "dark"; } c
 // ── state ─────────────────────────────────────────────────────────────────
 let status = null, actions = [], boards = [], sounds = [];
 let board = null, screenID = null, selected = null;
+let editKeys = null;
 let LAST = {};
 
-document.querySelectorAll("nav button").forEach(b => {
-  b.onclick = () => {
-    document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
-    document.querySelectorAll("section").forEach(x => x.classList.remove("active"));
-    b.classList.add("active");
-    document.getElementById("tab-" + b.dataset.tab).classList.add("active");
-    if (b.dataset.tab === "sounds") loadSounds();
-    if (b.dataset.tab === "phones") loadPhones();
-    if (b.dataset.tab === "setup") refreshStatus();
-  };
-});
+function showTab(name) {
+  document.querySelectorAll("nav button").forEach(x =>
+    x.classList.toggle("active", x.dataset.tab === name));
+  document.querySelectorAll("section").forEach(x => x.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  if (name === "sounds") loadSounds();
+  if (name === "phones") loadPhones();
+  if (name === "setup") refreshStatus();
+}
+document.querySelectorAll("nav button").forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
 
 // ── status ────────────────────────────────────────────────────────────────
 async function refreshStatus() {
@@ -673,7 +729,7 @@ async function loadSounds() {
       return;
     }
     list.innerHTML = sounds.map(s =>
-      "<div class='sound-row' data-file='" + esc(s.file) + "'>" +
+      "<div class='sound-row' draggable='true' data-file='" + esc(s.file) + "'>" +
         "<svg viewBox='0 0 24 24' width='17' height='17' fill='none' stroke='currentColor' stroke-width='2'><path d='M9 18V6l10-2v12'/><circle cx='6' cy='18' r='3'/><circle cx='19' cy='16' r='3'/></svg>" +
         "<span class='nm'>" + esc(s.name) + "</span>" +
         "<span class='hint'>" + fmtBytes(s.bytes) + "</span>" +
@@ -683,6 +739,8 @@ async function loadSounds() {
 
     for (const row of list.querySelectorAll(".sound-row")) {
       const file = row.dataset.file;
+      row.ondragstart = ev => { soundDrag = file; ev.dataTransfer.setData("text/plain", file); };
+      row.ondragend = () => { soundDrag = null; clearHints(); };
       row.querySelector(".nm").onclick = () => previewSound(row, file);
       row.querySelector("[data-a=use]").onclick = () => addSoundToBoard(file);
       row.querySelector("[data-a=del]").onclick = (e) => { e.stopPropagation(); removeSound(file); };
@@ -908,14 +966,18 @@ function renderBoard() {
         }
         pad.innerHTML =
           "<span class='handle'>⠿</span>" +
+          "<button class='kill' type='button' title='Remove this from the board' aria-label='Remove " + esc(b.label || b.id) + "'>✕</button>" +
           "<div class='ico'>" + ico + "</div>" +
           "<div class='lbl'>" + esc(b.label || b.id) + "</div>" +
           "<div class='sub'>" + esc(shortAction(b)) + "</div>" +
           (isSound ? "<div class='wave'>" + [5,9,12,7,10].map(h => "<i style='height:" + h + "px'></i>").join("") + "</div>" : "");
         pad.onclick = () => openEdit(b.id);
+        // The remove control must not also open the editor underneath it.
+        pad.querySelector(".kill").onclick = ev => { ev.stopPropagation(); removeSquare(b.id); };
         attachDrag(pad, b);
       } else {
         pad.textContent = "+";
+        pad.title = "Add something here";
         pad.onclick = () => openWhat(r, c);
       }
       attachDrop(pad, r, c);
@@ -930,7 +992,7 @@ function shortAction(b) {
   const p = (b.on_press && b.on_press.params) || {};
   switch (t) {
     case "sound.play": return "plays a sound";
-    case "keyboard.shortcut": return (p.keys || []).join("+").toLowerCase() || "key press";
+    case "keyboard.shortcut": return keysFor(b).join("+").toLowerCase() || "key press";
     case "keyboard.text": return "types text";
     case "keyboard.key": return p.key ? p.key.toLowerCase() : "key press";
     case "open_terminal": return "opens a terminal";
@@ -982,6 +1044,17 @@ function attachDrop(pad, row, col) {
     clearHints();
     if (soundDrag) {
       const f = soundDrag; soundDrag = null;
+      const s = screen();
+      const target = (s.buttons || []).find(b => b.cell.row === row && b.cell.column === col);
+      if (target) {
+        target.on_press = { type: "sound.play", params: { file: f } };
+        target.label = titleCase(f.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " "));
+        target.icon = { type: "emoji", value: "🔊" };
+        selected = target.id;
+        renderBoard();
+        await save();
+        return;
+      }
       await addSquare(row, col, "sound.play", { file: f });
       return;
     }
@@ -1067,78 +1140,289 @@ function openWhat(row, col) {
   el.querySelectorAll(".choice").forEach(btn => {
     btn.onclick = () => {
       const w = WHAT[Number(btn.dataset.i)];
-      if (w.action) chooseWhat(w, row, col);
-      else closeWhat(), openAdvancedPicker(row, col);
+      if (!w.action) { closeWhat(); openAdvancedPicker(row, col); return; }
+      if (w.action === "sound.play" && !sounds.length) loadSounds();
+      chooseWhat(w, row, col);
     };
   });
   document.getElementById("what-extra").innerHTML = "";
+  document.getElementById("what-choices").style.display = "";
   document.getElementById("what-scrim").classList.add("open");
 }
 let pendingCell = null;
 
 function closeWhat() { document.getElementById("what-scrim").classList.remove("open"); }
 
+// The host needs a few facts for some actions — which keys, which file, which
+// board. This is where they are asked for.
+//
+// Not window.prompt(): it cannot show the list of boards, it cannot show the
+// sounds you have, it is unstyled, and on some platforms a browser suppresses it
+// entirely. Every question is a form in this panel instead.
+const ASK = {
+  "keyboard.shortcut": "keys",
+  "keyboard.text": "text",
+  "open_url": "url",
+  "launch_application": "program",
+  "open_folder": "folder",
+  "deck.notify": "message",
+  "deck.change_profile": "board",
+  "deck.open_page": "screen",
+  "sound.play": "sound",
+};
+
+// The key names the host accepts are its own, uppercase, and it says no to
+// anything else. Offering them beats asking someone to remember them.
+const MODIFIERS = ["CTRL", "SHIFT", "ALT", "META"];
+const COMMON_KEYS = ["C", "V", "X", "Z", "S", "A", "F", "P", "T", "W",
+                     "TAB", "ENTER", "ESCAPE", "SPACE", "DELETE", "F5", "F11", "F12",
+                     "UP", "DOWN", "LEFT", "RIGHT", "PAGEUP", "PAGEDOWN", "HOME", "END"];
+
 async function chooseWhat(w, row, col) {
-  closeWhat();
-  let params = {};
-  if (w.action === "deck.change_profile") {
-    const other = boards.filter(b => b.id !== board.id);
-    if (!other.length) { toast("You only have one board, so there is nothing to switch to.", "warn"); return; }
-    const pick = prompt("Switch to which board?\n\n" + other.map(b => b.id).join("\n"), other[0].id);
-    if (!pick) return;
-    params = { profile_id: pick };
-  }
-  if (w.action === "deck.open_page") {
-    const pick = prompt("Open which screen?\n\n" + board.pages.map(p => p.id).join("\n"), board.pages[0].id);
-    if (!pick) return;
-    params = { page_id: pick };
-  }
-  if (w.action === "keyboard.text") {
-    const text = prompt("What text should it type?", "");
-    if (text == null) return;
-    params = { text: text };
-  }
-  if (w.action === "keyboard.shortcut") {
-    const keys = prompt("Which keys? Write them with + between them.\n\nExamples: CTRL+C   CTRL+SHIFT+P   ALT+TAB", "CTRL+C");
-    if (!keys) return;
-    params = { keys: keys.split("+").map(s => s.trim().toUpperCase()).filter(Boolean) };
-  }
-  if (w.action === "open_url") {
-    const url = prompt("Which web address?", "https://");
-    if (!url) return;
-    params = { url: url };
-  }
-  if (w.action === "launch_application") {
-    const target = prompt("Which program?\n\nWindows example: notepad.exe\nLinux example: gedit", "");
-    if (!target) return;
-    params = { target };
-  }
-  if (w.action === "open_folder") {
-    const path = prompt("Which folder?", "");
-    if (!path) return;
-    params = { path };
-  }
-  if (w.action === "deck.notify") {
-    const msg = prompt("What should the message say?", "Hello");
-    if (!msg) return;
-    params = { message: msg, level: "info" };
-  }
+  const kind = ASK[w.action];
+  if (!kind) { closeWhat(); await commitWhat(w, {}, row, col); return; }
+  renderAsk(kind, w, row, col);
+}
+
+// commitWhat is the one place a chosen action becomes a square, whether it
+// needed a question answered or not.
+async function commitWhat(w, params, row, col) {
   if (row != null) await addSquare(row, col, w.action, params, w);
   else await setActionOnSelected(w.action, params, w);
 }
 
+function backToChoices() {
+  document.getElementById("what-choices").style.display = "";
+  document.getElementById("what-extra").innerHTML = "";
+  document.getElementById("what-title").textContent = "What should this square do?";
+}
+
+function renderAsk(kind, w, row, col) {
+  document.getElementById("what-title").textContent = w.t;
+  document.getElementById("what-choices").style.display = "none";
+  const extra = document.getElementById("what-extra");
+  const add = params => { closeWhat(); commitWhat(w, params, row, col); };
+
+  const foot = label =>
+    "<div class='row' style='margin-top:18px'>" +
+      "<button class='btn ghost' id='ask-back'>Back</button>" +
+      "<span class='grow'></span>" +
+      "<button class='btn' id='ask-ok'>" + label + "</button>" +
+    "</div>";
+
+  if (kind === "keys") {
+    extra.innerHTML =
+      "<div class='ask'>" +
+        "<div class='rec' id='ask-rec' tabindex='0'>" +
+          "<div class='chord' id='ask-chord'></div>" +
+          "<div class='say' id='ask-say'>Click here, then press the keys you want</div>" +
+        "</div>" +
+        "<div><span class='hint'>Hold down</span><div class='combo' id='ask-mods'>" +
+          MODIFIERS.map(m => "<button type='button' class='chip' data-k='" + m + "'>" + keyLabel(m) + "</button>").join("") +
+        "</div></div>" +
+        "<div><span class='hint'>Often used</span><div class='combo' id='ask-presets'>" +
+          [["CTRL","C"],["CTRL","V"],["CTRL","X"],["CTRL","Z"],["CTRL","S"],
+           ["CTRL","SHIFT","P"],["CTRL","SHIFT","ESCAPE"],["ALT","TAB"],["META","D"],["META","L"]]
+            .map(k => "<button type='button' class='chip' data-p='" + k.join("+") + "'>" + k.map(keyLabel).join(" + ") + "</button>").join("") +
+        "</div></div>" +
+        "<details><summary class='hint'>A key that is not on this keyboard</summary>" +
+          "<div class='cat' id='ask-cat' style='margin-top:10px'>" + renderKeyCatalog() + "</div>" +
+        "</details>" +
+        foot("Add this square") +
+      "</div>";
+
+    // A shortcut is recorded, not typed: nobody should have to know that this
+    // host spells Page Down "PAGEDOWN". The recorder takes the real keystroke,
+    // and the catalog covers keys the keyboard in front of you does not have.
+    const mods = new Set();
+    let one = "";
+    const rec = document.getElementById("ask-rec");
+    const chordEl = document.getElementById("ask-chord");
+    const sayEl = document.getElementById("ask-say");
+    const okBtn = document.getElementById("ask-ok");
+
+    const paint = () => {
+      const order = MODIFIERS.filter(m => mods.has(m));
+      const parts = order.concat(one ? [one] : []);
+      chordEl.innerHTML = parts.length
+        ? parts.map(k => "<span class='kbd'>" + esc(keyLabel(k)) + "</span>").join("")
+        : "<span style='color:var(--fg-faint);font-weight:400'>nothing yet</span>";
+      extra.querySelectorAll("#ask-mods .chip").forEach(b => b.classList.toggle("on", mods.has(b.dataset.k)));
+      okBtn.disabled = !one;
+    };
+
+    rec.onclick = () => rec.focus();
+    rec.onfocus = () => { rec.classList.add("live"); sayEl.textContent = "Listening. Press the keys you want."; };
+    rec.onblur = () => { rec.classList.remove("live"); sayEl.textContent = "Click here, then press the keys you want"; };
+    rec.onkeydown = ev => {
+      // Escape clears rather than closing, so a wrong chord is undone in place.
+      if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); mods.clear(); one = ""; paint(); return; }
+      const name = keyFromEvent(ev);
+      if (!name) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (MODIFIERS.includes(name)) mods.add(name);
+      else one = name;
+      paint();
+    };
+    // Key repeat from holding a modifier must not toggle it on and off.
+    rec.onkeyup = ev => { if (keyFromEvent(ev)) ev.stopPropagation(); };
+    extra.querySelectorAll("#ask-mods .chip").forEach(b => b.onclick = () => {
+      mods.has(b.dataset.k) ? mods.delete(b.dataset.k) : mods.add(b.dataset.k); paint();
+    });
+    extra.querySelectorAll("#ask-presets .chip").forEach(b => b.onclick = () => {
+      mods.clear(); one = "";
+      const parts = b.dataset.p.split("+");
+      for (const x of parts.slice(0, -1)) mods.add(x);
+      one = parts[parts.length - 1];
+      paint();
+    });
+    extra.querySelectorAll("#ask-cat button").forEach(b => b.onclick = () => {
+      one = b.dataset.k; paint();
+    });
+    okBtn.onclick = () => {
+      if (!one) { rec.focus(); return; }
+      add({ keys: MODIFIERS.filter(m => mods.has(m)).concat([one]) });
+    };
+    paint();
+    rec.focus();
+  }
+
+  else if (kind === "sound") {
+    const list = sounds.length
+      ? "<div class='pick-grid' id='ask-sounds'>" + sounds.map(s =>
+          "<button type='button' data-f='" + esc(s.file) + "'>" + esc(s.name) +
+          "<span class='d'>" + fmtBytes(s.bytes) + "</span></button>").join("") + "</div>"
+      : "<div class='empty-state'><h3>No sounds yet</h3>" +
+        "<p>Add an audio file on the Sounds tab, then come back here.</p>" +
+        "<button class='btn' id='ask-gosounds' style='margin-top:10px'>Go to Sounds</button></div>";
+    extra.innerHTML =
+      "<div class='ask'>" +
+        "<p class='sub'>Which sound should this square play? It comes out of this computer.</p>" +
+        list + foot("Add this square") +
+      "</div>";
+    if (!sounds.length) {
+      document.getElementById("ask-gosounds").onclick = () => {
+        closeWhat(); showTab("sounds");
+      };
+      document.getElementById("ask-ok").disabled = true;
+    } else {
+      let pick = sounds[0].file;
+      const buttons = [...extra.querySelectorAll("#ask-sounds button")];
+      const paint = () => buttons.forEach(b => b.classList.toggle("on", b.dataset.f === pick));
+      buttons.forEach(b => b.onclick = () => { pick = b.dataset.f; paint(); });
+      document.getElementById("ask-ok").onclick = () => add({ file: pick });
+      paint();
+    }
+  }
+
+  else if (kind === "board" || kind === "screen") {
+    const isBoard = kind === "board";
+    const items = isBoard
+      ? boards.filter(b => b.id !== board.id).map(b => ({ id: b.id, name: b.name || b.id, d: "another board" }))
+      : (board.pages || []).map(p => ({ id: p.id, name: p.name || p.id,
+          d: (p.buttons || []).length + " square" + ((p.buttons || []).length === 1 ? "" : "s") }));
+    if (!items.length) {
+      extra.innerHTML = "<div class='ask'><div class='empty-state'><h3>Nothing to switch to</h3><p>" +
+        (isBoard ? "You have only one board." : "This board has only one screen.") + "</p></div>" +
+        "<div class='row'><button class='btn ghost' id='ask-back'>Back</button></div></div>";
+      document.getElementById("ask-back").onclick = backToChoices;
+      return;
+    }
+    extra.innerHTML =
+      "<div class='ask'>" +
+        "<p class='sub'>" + (isBoard ? "Which board should it open?" : "Which screen of this board should it open?") + "</p>" +
+        "<div class='pick-grid' id='ask-items'>" + items.map(i =>
+          "<button type='button' data-id='" + esc(i.id) + "'>" + esc(i.name) +
+          "<span class='d'>" + esc(i.d) + "</span></button>").join("") + "</div>" +
+        foot("Add this square") +
+      "</div>";
+    let pick = items[0].id;
+    const buttons = [...extra.querySelectorAll("#ask-items button")];
+    const paint = () => buttons.forEach(b => b.classList.toggle("on", b.dataset.id === pick));
+    buttons.forEach(b => b.onclick = () => { pick = b.dataset.id; paint(); });
+    document.getElementById("ask-ok").onclick = () => add(isBoard ? { profile_id: pick } : { page_id: pick });
+    paint();
+  }
+
+  else {
+    // The host is on exactly one OS, so the example only needs to be that one.
+    const os = (status && status.os) || "";
+    const win = os === "windows";
+    const spec = {
+      text:    { label: "What should it type?", hint: "It is typed where the cursor is, one character at a time.",
+                 placeholder: "Hello", param: "text", value: "" },
+      url:     { label: "Which web address?", hint: "It opens in your usual browser.",
+                 placeholder: "https://", param: "url", value: "https://" },
+      program: { label: "Which program?", hint: "The name of the program, or the full path to it.",
+                 placeholder: win ? "notepad.exe" : "gedit", param: "target", value: "" },
+      folder:  { label: "Which folder?", hint: "It opens in your file manager.",
+                 placeholder: win ? "C:\\Users\\me\\Documents" : "/home/me/Documents",
+                 param: "path", value: "" },
+      message: { label: "What should the message say?", hint: "It appears on the phone, not on this computer.",
+                 placeholder: "Time to stretch", param: "message", value: "" },
+    }[kind];
+    extra.innerHTML =
+      "<div class='ask'>" +
+        "<label class='field'><span>" + spec.label + "</span>" +
+          "<input id='ask-value' placeholder=\"" + spec.placeholder + "\"></label>" +
+        "<p class='hint' style='margin:-8px 0 0'>" + spec.hint + "</p>" +
+        foot("Add this square") +
+      "</div>";
+    const input = document.getElementById("ask-value");
+    input.value = spec.value;
+    input.focus();
+    document.getElementById("ask-ok").onclick = () => {
+      const v = input.value.trim();
+      if (!v) { input.classList.add("bad"); input.focus(); return; }
+      const params = {}; params[spec.param] = v;
+      if (kind === "message") params.level = "info";
+      add(params);
+    };
+    input.onkeydown = ev => { if (ev.key === "Enter") document.getElementById("ask-ok").click(); };
+  }
+
+  const back = document.getElementById("ask-back");
+  if (back) back.onclick = backToChoices;
+}
+
 // The full registry, for anyone who wants an action the friendly list omits.
+// It asks the same way, with the action's own example filled in as a starting
+// point rather than a blank box.
 function openAdvancedPicker(row, col) {
-  const list = actions.map(a => a.type).join("\n");
-  const pick = prompt("Which action? Type one of these:\n\n" + list, actions.length ? actions[0].type : "");
-  if (!pick) return;
-  const known = actions.some(a => a.type === pick.trim());
-  if (!known) { toast("“" + pick + "” is not one of this computer's actions.", "err"); return; }
-  const a = actions.find(x => x.type === pick.trim());
-  let params = {};
-  if (a && a.example) { try { params = JSON.parse(a.example); } catch (_) {} }
-  if (row != null) addSquare(row, col, pick.trim(), params);
-  else setActionOnSelected(pick.trim(), params);
+  const w = { t: "Something else", action: "", icon: "·" };
+  document.getElementById("what-title").textContent = w.t;
+  document.getElementById("what-choices").style.display = "none";
+  const extra = document.getElementById("what-extra");
+  const list = actions.slice().sort((a, b) => a.type.localeCompare(b.type));
+  extra.innerHTML =
+    "<div class='ask'>" +
+      "<label class='field'><span>Which action?</span><select id='adv-type'>" +
+        list.map(a => "<option value='" + esc(a.type) + "'>" + esc(a.type) +
+          (a.scope ? "  —  needs " + esc(a.scope) + " permission" : "") + "</option>").join("") +
+      "</select></label>" +
+      "<label class='field'><span>Options <span class='hint'>— the host filled this in as an example; edit it if you need to</span></span>" +
+        "<textarea id='adv-params' spellcheck='false'></textarea></label>" +
+      "<div class='row'><button class='btn ghost' id='ask-back'>Back</button><span class='grow'></span>" +
+      "<button class='btn' id='adv-ok'>Add this square</button></div>" +
+    "</div>";
+  const sel = document.getElementById("adv-type");
+  const ta = document.getElementById("adv-params");
+  const fill = () => {
+    const a = actions.find(x => x.type === sel.value);
+    ta.value = (a && a.example) || "{}";
+  };
+  sel.onchange = fill;
+  fill();
+  document.getElementById("adv-ok").onclick = async () => {
+    let params;
+    try { params = JSON.parse(ta.value || "{}"); ta.classList.remove("bad"); }
+    catch (e) { ta.classList.add("bad"); toast("Those options are not valid JSON: " + e.message, "err"); return; }
+    closeWhat();
+    if (row != null) await addSquare(row, col, sel.value, params);
+    else await setActionOnSelected(sel.value, params);
+  };
+  document.getElementById("ask-back").onclick = backToChoices;
 }
 
 // ── add, edit, save ───────────────────────────────────────────────────────
@@ -1165,11 +1449,175 @@ async function addSquare(row, col, actionType, params, w) {
     on_press: { type: actionType, params: params || (a && a.example ? safeJSON(a.example) : {}) },
   };
   s.buttons = s.buttons || [];
+  const existing = s.buttons.findIndex(x => x.cell.row === row && x.cell.column === col);
+  if (existing >= 0) s.buttons.splice(existing, 1);
   s.buttons.push(b);
   selected = b.id;
   renderBoard();
   await save();
   return b;
+}
+
+// keysFor reads the keys of a shortcut square.
+//
+// The host accepts two shapes: a plain list, and a map from platform name to
+// list so that one board can say "Ctrl+Shift+Esc on Windows, Ctrl+Alt+T on
+// Linux". Only the list is editable here; the map form is shown as this
+// computer's entry and left with its other entries intact on save.
+function keysFor(b) {
+  const raw = ((b.on_press || {}).params || {}).keys;
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    const os = (status && status.os) || "";
+    if (Array.isArray(raw[os])) return raw[os];
+    const first = Object.values(raw).find(Array.isArray);
+    return first || [];
+  }
+  return [];
+}
+
+// renderKeysField shows the shortcut recorder only for a shortcut square, so the
+// rest of the panel does not carry a control that does nothing.
+function renderKeysField(b) {
+  const wrap = document.getElementById("e-keys-wrap");
+  const isShortcut = !!(b.on_press && b.on_press.type === "keyboard.shortcut");
+  wrap.style.display = isShortcut ? "" : "none";
+  if (!isShortcut) { editKeys = null; return; }
+  editKeys = keysFor(b).slice();
+  mountRecorder(document.getElementById("e-keys-rec"), () => editKeys, k => { editKeys = k; });
+}
+
+// keyLabel is how a key name is shown to a person. The host's names are the
+// wire format — PAGEDOWN, BRACKETLEFT — and they are not what is printed on a
+// keyboard.
+const KEY_LABELS = {
+  CTRL: "Ctrl", SHIFT: "Shift", ALT: "Alt", META: "Win",
+  ENTER: "Enter", TAB: "Tab", SPACE: "Space", BACKSPACE: "Backspace",
+  DELETE: "Del", INSERT: "Ins", ESCAPE: "Esc", PAGEUP: "Page Up", PAGEDOWN: "Page Down",
+  UP: "↑", DOWN: "↓", LEFT: "←", RIGHT: "→",
+  CAPSLOCK: "Caps Lock", PRINTSCREEN: "Print Screen", MENU: "Menu", NUMLOCK: "Num Lock",
+  MINUS: "-", EQUAL: "=", BRACKETLEFT: "[", BRACKETRIGHT: "]", BACKSLASH: "\\",
+  SEMICOLON: ";", QUOTE: "'", BACKTICK: "`", COMMA: ",", PERIOD: ".", SLASH: "/",
+  INTLBACKSLASH: "\\", NUMADD: "Num +", NUMSUBTRACT: "Num -", NUMMULTIPLY: "Num *",
+  NUMDIVIDE: "Num /", NUMDECIMAL: "Num .",
+  MEDIAPLAYPAUSE: "Play/Pause", MEDIANEXT: "Next Track", MEDIAPREV: "Prev Track",
+  MEDIASTOP: "Stop", VOLUMEUP: "Vol +", VOLUMEDOWN: "Vol -", VOLUMEMUTE: "Mute",
+  BROWSERBACK: "Back", BROWSERFORWARD: "Forward", BROWSERHOME: "Home Page",
+};
+function keyLabel(name) {
+  if (KEY_LABELS[name]) return KEY_LABELS[name];
+  if (/^NUM[0-9]$/.test(name)) return "Num " + name.slice(3);
+  return name.charAt(0) + name.slice(1).toLowerCase();
+}
+
+// keyFromEvent turns a browser keyboard event into the host's key name.
+//
+// event.code is used wherever it exists: it names the physical key, so the
+// recording is the same whichever keyboard layout is in use, which is what the
+// host's US-layout key table assumes.
+const CODE_KEYS = {
+  Enter: "ENTER", Tab: "TAB", Space: "SPACE", Backspace: "BACKSPACE",
+  Delete: "DELETE", Insert: "INSERT", Escape: "ESCAPE", Home: "HOME", End: "END",
+  PageUp: "PAGEUP", PageDown: "PAGEDOWN", ArrowUp: "UP", ArrowDown: "DOWN",
+  ArrowLeft: "LEFT", ArrowRight: "RIGHT", CapsLock: "CAPSLOCK",
+  PrintScreen: "PRINTSCREEN", ContextMenu: "MENU", NumLock: "NUMLOCK",
+  Minus: "MINUS", Equal: "EQUAL", BracketLeft: "BRACKETLEFT", BracketRight: "BRACKETRIGHT",
+  Backslash: "BACKSLASH", Semicolon: "SEMICOLON", Quote: "QUOTE", Backquote: "BACKTICK",
+  Comma: "COMMA", Period: "PERIOD", Slash: "SLASH", IntlBackslash: "INTLBACKSLASH",
+  NumpadAdd: "NUMADD", NumpadSubtract: "NUMSUBTRACT", NumpadMultiply: "NUMMULTIPLY",
+  NumpadDivide: "NUMDIVIDE", NumpadDecimal: "NUMDECIMAL",
+  MediaPlayPause: "MEDIAPLAYPAUSE", MediaTrackNext: "MEDIANEXT",
+  MediaTrackPrevious: "MEDIAPREV", MediaStop: "MEDIASTOP",
+  AudioVolumeUp: "VOLUMEUP", AudioVolumeDown: "VOLUMEDOWN", AudioVolumeMute: "VOLUMEMUTE",
+  BrowserBack: "BROWSERBACK", BrowserForward: "BROWSERFORWARD", BrowserHome: "BROWSERHOME",
+};
+function keyFromEvent(ev) {
+  const code = ev.code || "";
+  if (code === "ControlLeft" || code === "ControlRight") return "CTRL";
+  if (code === "ShiftLeft" || code === "ShiftRight") return "SHIFT";
+  if (code === "AltLeft" || code === "AltRight") return "ALT";
+  if (code === "MetaLeft" || code === "MetaRight") return "META";
+  if (CODE_KEYS[code]) return CODE_KEYS[code];
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+  if (/^Numpad[0-9]$/.test(code)) return "NUM" + code.slice(6);
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code;
+  return "";
+}
+
+// renderKeyCatalog lists every key name the host accepts, for a key the
+// keyboard in front of the user does not have.
+function renderKeyCatalog() {
+  const groups = [
+    ["Letters", "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")],
+    ["Digits", "0123456789".split("")],
+    ["Function", Array.from({ length: 24 }, (_, i) => "F" + (i + 1))],
+    ["Editing and navigation", ["ENTER", "TAB", "SPACE", "BACKSPACE", "DELETE", "INSERT",
+      "ESCAPE", "HOME", "END", "PAGEUP", "PAGEDOWN", "UP", "DOWN", "LEFT", "RIGHT",
+      "CAPSLOCK", "PRINTSCREEN", "MENU", "NUMLOCK"]],
+    ["Punctuation", ["MINUS", "EQUAL", "BRACKETLEFT", "BRACKETRIGHT", "BACKSLASH",
+      "SEMICOLON", "QUOTE", "BACKTICK", "COMMA", "PERIOD", "SLASH", "INTLBACKSLASH"]],
+    ["Number pad", ["NUM0", "NUM1", "NUM2", "NUM3", "NUM4", "NUM5", "NUM6", "NUM7",
+      "NUM8", "NUM9", "NUMADD", "NUMSUBTRACT", "NUMMULTIPLY", "NUMDIVIDE", "NUMDECIMAL"]],
+    ["Media", ["MEDIAPLAYPAUSE", "MEDIANEXT", "MEDIAPREV", "MEDIASTOP",
+      "VOLUMEUP", "VOLUMEDOWN", "VOLUMEMUTE"]],
+    ["Browser", ["BROWSERBACK", "BROWSERFORWARD", "BROWSERHOME"]],
+  ];
+  return groups.map(([title, names]) =>
+    "<div><h4>" + title + "</h4><div class='combo'>" +
+      names.map(n => "<button type='button' class='chip' data-k='" + n + "'>" + esc(keyLabel(n)) + "</button>").join("") +
+    "</div></div>").join("");
+}
+
+// mountRecorder turns an element into a shortcut recorder.
+//
+// get() returns the chord as it stands, set() receives a new one. Recording
+// beats typing here because the host's key names are its own: nobody should have
+// to guess whether it wants "PAGEDOWN" or "PageDown".
+function mountRecorder(el, get, set) {
+  const chord = el.querySelector(".chord");
+  const say = el.querySelector(".say");
+  const rest = () => "Click here, then press the keys you want";
+
+  const paint = () => {
+    const parts = get() || [];
+    chord.innerHTML = parts.length
+      ? parts.map(k => "<span class='kbd'>" + esc(keyLabel(k)) + "</span>").join("")
+      : "<span style='color:var(--fg-faint);font-weight:400'>nothing yet</span>";
+  };
+  el.onclick = () => el.focus();
+  el.onfocus = () => { el.classList.add("live"); say.textContent = "Listening. Press the keys you want."; };
+  el.onblur = () => { el.classList.remove("live"); say.textContent = rest(); };
+  el.onkeydown = ev => {
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); set([]); paint(); return; }
+    const name = keyFromEvent(ev);
+    if (!name) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const cur = (get() || []).slice();
+    if (MODIFIERS.includes(name)) {
+      // A modifier is a toggle: pressing Ctrl again removes it, which is how a
+      // wrong chord is fixed without starting over.
+      set(cur.includes(name) ? cur.filter(k => k !== name) : MODIFIERS.filter(m => cur.includes(m) || m === name).concat(cur.filter(k => !MODIFIERS.includes(k))));
+    } else {
+      set(MODIFIERS.filter(m => cur.includes(m)).concat([name]));
+    }
+    paint();
+  };
+  el.onkeyup = ev => { if (keyFromEvent(ev)) ev.stopPropagation(); };
+  paint();
+  return paint;
+}
+
+// parseKeys reads a shortcut the way a person would write it. The host is strict
+// about key names and about modifiers being first, so the input is normalised
+// here rather than rejected later by the host with a message about a key name.
+function parseKeys(text) {
+  const mods = ["CTRL", "SHIFT", "ALT", "META"];
+  const parts = String(text || "").split("+").map(s => s.trim().toUpperCase()).filter(Boolean);
+  const picked = mods.filter(m => parts.includes(m));
+  const rest = parts.filter(p => !mods.includes(p));
+  return picked.concat(rest);
 }
 
 function safeJSON(s) { try { return JSON.parse(s); } catch (_) { return {}; } }
@@ -1244,6 +1692,7 @@ function renderEditFields() {
   renderIconPreview(b.icon || {});
   document.getElementById("e-action").textContent = shortAction(b);
   document.getElementById("e-params").value = JSON.stringify((b.on_press && b.on_press.params) || {}, null, 2);
+  renderKeysField(b);
   document.getElementById("e-row").value = b.cell.row || 0;
   document.getElementById("e-col").value = b.cell.column || 0;
   document.getElementById("e-cspan").value = b.cell.column_span || 1;
@@ -1273,6 +1722,17 @@ async function saveSquare() {
   catch (e) { ta.classList.add("bad"); toast("The options are not valid JSON: " + e.message, "err"); return; }
 
   b.label = document.getElementById("e-label").value || b.label;
+  if (b.on_press && b.on_press.type === "keyboard.shortcut") {
+    const keys = editKeys || [];
+    if (!keys.length) { toast("A shortcut needs at least one key.", "err"); return; }
+    const raw = b.on_press.params.keys;
+    b.on_press.params = Object.assign({}, b.on_press.params, {
+      keys: (raw && !Array.isArray(raw) && typeof raw === "object")
+        ? Object.assign({}, raw, { [(status && status.os) || ""]: keys })
+        : keys,
+    });
+    document.getElementById("e-params").value = JSON.stringify(b.on_press.params, null, 2);
+  }
   const iconVal = document.getElementById("e-icon").value.trim();
   b.icon = !iconVal ? { type: "none" }
     : /\.(png|jpe?g|webp|gif)$/i.test(iconVal) ? { type: "image", value: iconVal }
@@ -1306,11 +1766,20 @@ async function resize(dw, dh) {
 }
 
 async function deleteSquare() {
+  if (selected) await removeSquare(selected);
+}
+
+// removeSquare is the single way a square leaves the board, whether the user
+// pressed the ✕ on the square or the button in the editor. The confirmation
+// names the square: a board of soundboard pads has several that look alike, and
+// "Delete this square?" would not say which one is about to go.
+async function removeSquare(id) {
   const s = screen();
-  if (!s || !selected) return;
-  if (!confirm("Delete this square?")) return;
-  s.buttons = (s.buttons || []).filter(x => x.id !== selected);
-  selected = null;
+  const b = s && (s.buttons || []).find(x => x.id === id);
+  if (!b) return;
+  if (!confirm("Remove “" + (b.label || b.id) + "” from this screen?\n\nThe rest of the board is not touched.")) return;
+  s.buttons = (s.buttons || []).filter(x => x.id !== id);
+  if (selected === id) selected = null;
   closeEdit();
   renderBoard();
   await save();
@@ -1529,6 +1998,10 @@ function renderGauges() {
 
 // ── keyboard ──────────────────────────────────────────────────────────────
 document.addEventListener("keydown", ev => {
+  // While the shortcut recorder is listening it gets every key, including
+  // Escape and Ctrl+S, which are otherwise the page's own shortcuts.
+  const rec = document.getElementById("ask-rec");
+  if (rec && document.activeElement === rec) return;
   if (ev.key === "Escape") { closeIconPicker(); closeWhat(); closeEdit(); }
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") { ev.preventDefault(); save(); }
 });

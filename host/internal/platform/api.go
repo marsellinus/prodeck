@@ -219,6 +219,28 @@ type NowPlaying struct {
 	Playing bool   `json:"playing"`
 }
 
+// Sound plays a file on this machine's default output device.
+//
+// It is separate from Media because it is a different thing: Media controls
+// whatever player the user already has open, while Sound makes the host itself
+// produce a noise. A soundboard button must work with no media player running.
+type Sound interface {
+	// PlayFile plays a file on this machine's default output device.
+	// blocking false returns once playback has started.
+	//
+	// volume is 0..100, where 0 is silent and 100 is the file as recorded. A
+	// platform that cannot set a level must report that in its result rather
+	// than pretend: see the Windows adapter, where PlaySound has no volume
+	// control at all.
+	//
+	// The name is not Play because Media already has one, and an embedded
+	// no-op type cannot define two methods with the same name.
+	PlayFile(ctx context.Context, path string, volume int, blocking bool) error
+	// SoundAvailable reports whether playback is possible, so `doctor` and the
+	// daemon can advertise it instead of failing at press time.
+	SoundAvailable() bool
+}
+
 // PowerCaps reports which power actions this host can actually perform. The
 // host advertises these so the client can grey out what will not work instead
 // of showing a button that always errors.
@@ -256,6 +278,7 @@ type Platform struct {
 	Launcher Launcher
 	Shell    Shell
 	Media    Media
+	Sound    Sound
 	Power    Power
 	Metrics  Metrics
 }
@@ -311,6 +334,9 @@ func (Unsupported) SetVolume(context.Context, int) error { return ErrUnsupported
 func (Unsupported) NowPlaying(context.Context) (NowPlaying, bool, error) {
 	return NowPlaying{}, false, ErrUnsupported
 }
+
+func (Unsupported) PlayFile(context.Context, string, int, bool) error { return ErrUnsupported }
+func (Unsupported) SoundAvailable() bool                              { return false }
 
 func (Unsupported) Lock(context.Context) error     { return ErrUnsupported }
 func (Unsupported) Sleep(context.Context) error    { return ErrUnsupported }
