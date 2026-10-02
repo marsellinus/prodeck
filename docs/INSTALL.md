@@ -155,6 +155,10 @@ sudo apt install libwebkit2gtk-4.1-dev
 
 The published release archives are built with `CGO_ENABLED=0` and contain no
 window; `--with-gui` is source-only for that reason, and the scripts say so.
+That is a limit on the *window*, not on the panel: a CGO-free binary still
+serves the same control panel to a browser at `http://127.0.0.1:8765/`, opened
+with `mobiledeck token --open`. Only the native window and the notification-area
+icon need CGO.
 
 ### 1.5 The systemd user unit
 
@@ -178,7 +182,7 @@ Task Scheduler or Startup-folder recipe in that section.
 
 ### 1.6 First run
 
-Both installers end by printing the two commands that matter:
+Both installers end by printing the commands to run next:
 
 ```sh
 mobiledeck run --bind 0.0.0.0
@@ -197,6 +201,14 @@ mobiledeck doctor
 ```
 
 `run` creates the configuration directory on first start.
+
+The control panel is a browser page at `http://127.0.0.1:8765/`. It asks for the
+admin key, and `mobiledeck token --open` opens it with the key already in the
+URL, so there is nothing to copy:
+
+```sh
+mobiledeck token --open
+```
 
 ---
 
@@ -307,9 +319,9 @@ rm -f ~/.config/systemd/user/mobiledeck.service
 systemctl --user daemon-reload
 ```
 
-The configuration directory holds your profiles, paired devices, TLS material
-and audit log. The installer never touches it; delete it only if you want to
-lose that state:
+The configuration directory holds your profiles, paired devices, TLS material,
+audit log and any soundboard files. The installer never touches it; delete it
+only if you want to lose that state:
 
 ```sh
 rm -rf "${XDG_CONFIG_HOME:-$HOME/.config}/mobiledeck"

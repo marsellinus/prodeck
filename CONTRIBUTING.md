@@ -24,20 +24,29 @@ is the document most reviews quote.
 A change that breaks one of these is sent back, regardless of how well it works.
 
 1. **Layering.** Dependencies flow one way:
-   `cli → server → engine → platform`, with `auth`, `profile`, `telemetry`, and
-   `store` feeding in from the side, and `proto` at the bottom depending on
-   nothing. `internal/proto` performs no I/O and holds no global state.
+   `cli → server → engine → platform`, with `auth`, `profiles`, `profile`,
+   `telemetry`, `sounds`, and `store` feeding in from the side, `gui` hanging off
+   `server` to serve the panel, and `proto` at the bottom depending on nothing.
+   `internal/proto` performs no I/O and holds no global state.
    `internal/profile` performs no I/O except `Load`/`Save` through an injected
    `fs.FS`. `internal/server` owns no domain logic. `internal/cli` parses
    arguments and manages the process lifecycle and nothing else.
 
-2. **No OS code outside `internal/platform`.** `runtime.GOOS` switches,
-   `syscall`, `golang.org/x/sys`, `os/exec`, and per-OS libraries belong in
-   `internal/platform`, behind build tags, implementing the interfaces in
-   `platform/api.go`. `internal/engine` never imports an OS package and never
-   touches `os/exec` directly — that is `platform.Shell`. The payoff is real:
-   porting to a new OS means adding files under `internal/platform/` and
-   changing nothing else.
+2. **No OS code outside the platform and UI boundaries.** `runtime.GOOS`
+   switches, `syscall`, `golang.org/x/sys`, `os/exec`, and per-OS libraries
+   belong behind build tags in the package that needs them, implementing the
+   interfaces in `platform/api.go` where the operation is a host capability.
+   `internal/engine` never imports an OS package and never touches `os/exec`
+   directly — that is `platform.Shell`; this is the rule that matters most and it
+   holds today. Three packages legitimately own OS-specific files, each with a
+   build-tagged counterpart: `internal/platform` (input, launchers, sound,
+   power), `internal/cli` (`detach_*`, `proc_*`, and `openInBrowser`, which
+   exist to manage a process and hand a URL to the desktop), and `internal/gui`
+   / `internal/tray` (the window and the notification-area icon, which are
+   Windows-and-CGO concerns). Anything else reaching for the OS is a bug. The
+   payoff is real: porting to a new OS means adding files under
+   `internal/platform/` and a build-tagged counterpart in the UI packages, and
+   changing nothing in the engine or the server.
 
 3. **No central action switch.** Actions are types registered in
    `engine.Registry`; dispatch is a map lookup. There is no `switch` over action

@@ -249,8 +249,9 @@ button forever.
   that resolves paths itself must apply `platform.ConfinePath` for the same
   reason.
 - **Bounded resources.** Actions run on the engine's worker pool
-  (`--max-concurrent-actions`). A plugin must not spawn unbounded goroutines or
-  block indefinitely; the per-action timeout applies to it like any core action.
+  (`engine.max_concurrent_actions`, a config field, default 8). A plugin must not
+  spawn unbounded goroutines or block indefinitely; the per-action timeout applies
+  to it like any core action.
 - **Out-of-process plugin.** Started with `platform.CommandContext` so its
   process group is killed on cancel or timeout, and so it cannot outlive the
   host.

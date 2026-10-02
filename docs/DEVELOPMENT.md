@@ -16,11 +16,11 @@ Building and running MobileDeck from source.
 └── scripts/              developer scripts
 ```
 
-Repository state: `host/internal/` currently contains `auth`, `config`, `engine`,
-`logging`, `platform`, `profile`, `proto`, and `store`. The `cmd/mobiledeck`
-entrypoint and the `server`, `telemetry`, `discovery`, and `cli` packages are
-part of the Milestone 1 deliverable described in `docs/ARCHITECTURE.md`; where a
-command below depends on one of those, this document says so.
+Repository state: `host/internal/` contains `app`, `auth`, `cli`, `config`,
+`engine`, `gui`, `icons`, `logging`, `platform`, `profile`, `profiles`, `proto`,
+`server`, `sounds`, `store`, `telemetry`, `tlsutil`, and `tray`. The
+`cmd/mobiledeck` entrypoint wires them together. `docs/ARCHITECTURE.md` §3
+describes what each package is for.
 
 ---
 
@@ -47,7 +47,10 @@ CGO_ENABLED=0 go build -trimpath -o mobiledeck ./cmd/mobiledeck
 ```
 
 `CGO_ENABLED=0` keeps cross-compilation working
-(`GOOS=windows|linux|darwin go build`), per ADR-0001.
+(`GOOS=windows|linux|darwin go build`), per ADR-0001. Such a binary has no native
+window and no notification-area icon; it still serves the control panel to a
+browser, so `mobiledeck run` plus `mobiledeck token --open` is a complete panel
+with no C toolchain at all.
 
 ### 2.1 Docker
 
@@ -103,6 +106,11 @@ socket owned by the logged-in user. Running as root is neither required nor
 supported (SECURITY.md §4). On a headless machine without a display,
 `keyboard.*` and `mouse.*` report `unsupported` rather than failing silently.
 
+The control panel does not need a display: `GET /` serves it to a browser, so
+`http://127.0.0.1:8765/` with the key from `go run ./cmd/mobiledeck token` is a
+usable panel on a headless box. The native window (`gui`) is the part that needs
+a desktop session and CGO; see [`GUI.md`](GUI.md).
+
 ### 4.2 Windows
 
 ```powershell
@@ -130,7 +138,7 @@ the injection and the host reports a permission error naming the requirement.
 ### 4.4 Custom configuration directory
 
 The host stores `config.json`, `devices.json`, `audit.jsonl`, `profiles/`,
-`logs/`, and `tls/` under the per-user config directory
+`sounds/`, `logs/`, and `tls/` under the per-user config directory
 (`%APPDATA%\mobiledeck` on Windows, `$XDG_CONFIG_HOME/mobiledeck` elsewhere).
 Override it for a throwaway instance:
 
@@ -146,15 +154,21 @@ go run ./cmd/mobiledeck run --config-dir ./.devdata
 ## 5. CLI surface
 
 ```
+mobiledeck gui       Start the host and open the desktop control panel.
 mobiledeck run       Start the host in the foreground.
 mobiledeck start     Start the host in the background (pidfile in logs/).
 mobiledeck stop      Stop the background host.
+mobiledeck restart   Stop then start.
 mobiledeck status    Report whether the host is running and on which port.
+mobiledeck token     Print the key the browser panel asks for; `--open` opens the panel with it.
+mobiledeck pair      Print a one-time PIN for pairing a new device.
 mobiledeck devices   List paired devices; `devices revoke <id>` removes one.
 mobiledeck profiles  List profiles; subcommands manage profile files.
-mobiledeck pair      Print a one-time PIN for pairing a new device.
 mobiledeck logs      Tail the host log ring buffer / log file.
 mobiledeck keys      List the canonical key names accepted by profiles.
+mobiledeck actions   List every action type this host provides.
+mobiledeck doctor    Check the environment and report what will not work.
+mobiledeck init      Create a default configuration without starting anything.
 mobiledeck version   Print the agent version and protocol range.
 ```
 
@@ -172,6 +186,13 @@ Flags are accepted after the subcommand. The documented ones are:
 | `--no-tls` | Disable TLS (only sensible when bound to loopback). |
 | `--insecure-allow-plaintext` | Permit pairing over an unencrypted LAN socket. Off by default; see SECURITY.md §5. |
 | `--allow-absolute-paths` | Let `run_script`/`open_folder` reference paths outside the profile and `scripts/` directories. Off by default. |
+
+Two commands add a flag of their own:
+
+| Command flag | Effect |
+|--------------|--------|
+| `gui --no-tray` | Close the window and stop the host, instead of leaving it running in the notification area. |
+| `token --open` | Open the control panel in a browser with the key already in the URL fragment, so it does not have to be pasted. |
 
 Concurrency limits are not flags: set `session.max_clients` (default 16) and
 `engine.max_concurrent_actions` (default 8) in `config.json`.
@@ -283,7 +304,8 @@ go vet ./...
 ```
 
 The security test matrix (`docs/SECURITY.md` §9) lives in
-`host/internal/*_test.go` and `host/internal/server/security_test.go`. Key
+`host/internal/*_test.go` — `internal/server/server_test.go` and
+`internal/auth/auth_test.go` carry most of it. Key
 invariants covered there: 4401/4403 close codes, PIN lockout, PIN single use and
 expiry, scope enforcement, path traversal refusal, oversized-frame rejection,
 rate limiting, and that tokens never reach the log.
@@ -298,11 +320,11 @@ cd android
 
 The JVM tests are the ones that matter most: `DeckClient` is deliberately free
 of Android UI classes so the protocol state machine is testable without a
-device. At the time of writing the Android module contains only its build files
-and a partial `dev/mobiledeck/data` package; `app/src/test` and
-`app/src/androidTest` are still being filled in. The Gradle tasks above are the
-ones the project uses and are the acceptance commands for a PR; run them once
-the source tree is complete.
+device. `app/src/test` holds them (`DeckClientTest`, `ProtocolTest`,
+`MetricFormatTest`, `IconDataUriTest`, and `RealHostIntegrationTest`, which is
+skipped unless a host is reachable). There is no `app/src/androidTest` yet, so
+`connectedDebugAndroidTest` has nothing to run; the JVM tests are the acceptance
+command for a PR.
 
 ---
 

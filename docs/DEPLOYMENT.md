@@ -71,7 +71,9 @@ only. To run it detached instead:
 `run` creates the configuration directory, a default `config.json`, a
 self-signed TLS certificate under `tls/`, and seeds the example profile. It
 listens on `0.0.0.0:8765` and advertises `_mobiledeck._tcp.local.` over mDNS.
-Pair a phone with:
+`profiles/` and `logs/` are created with it; `sounds/` appears the first time the
+soundboard is used, so a host that never plays a sound leaves no empty directory
+behind. Pair a phone with:
 
 ```sh
 ./mobiledeck pair
@@ -82,6 +84,23 @@ Pair a phone with:
 ```sh
 ./mobiledeck doctor
 ```
+
+#### The control panel
+
+`GET /` serves the control panel to a browser on the machine that runs the host:
+open `http://127.0.0.1:8765/` and the page asks for the admin key. It is a
+loopback-only credential, so this is not a page for the phone on the LAN.
+
+```sh
+./mobiledeck token --open   # opens the panel with the key already in the URL
+./mobiledeck token          # prints the key, to paste by hand
+```
+
+The key is generated per host process, so a restart invalidates whatever the
+browser remembered — `token --open` is the quick way back in. The same page runs
+as a native window with `mobiledeck gui` (Windows with CGO; see
+[`GUI.md`](GUI.md)). A client that is not a browser still gets the plain-text
+summary from the same address.
 
 ---
 
@@ -156,6 +175,15 @@ journalctl --user -u mobiledeck -f
 This is the same background mode as §1.4: a detached process with a pidfile
 under `logs/`, stopped with `mobiledeck stop`.
 
+For the desktop window instead, `.\mobiledeck.exe gui` starts the host and opens
+the control panel. Closing that window does **not** stop the host: it hides the
+window and leaves an icon in the notification area, so a phone keeps working
+while the panel is out of the way. Quit from the icon's menu to stop it, or pass
+`--no-tray` to keep the older behaviour of stopping with the window. The tray
+needs a CGO build; a `CGO_ENABLED=0` binary has no icon and stops with the
+window, and `gui` says so on start. `mobiledeck run` is unaffected either way —
+it has no window and no tray.
+
 ### 3.2 Start at logon
 
 A Windows **Service** cannot inject input into the interactive session: services
@@ -227,6 +255,11 @@ limitations are explicit rather than discovered at press time.
 - Scripts and commands that need no display (`run_script`, `run_command`),
   subject to the `scripts` scope.
 - Media and volume **if** you mount the host's PulseAudio socket (see below).
+- `sound.play` under the same condition: the image ships `paplay` and `aplay`, and
+  the soundboard files live in the mounted `sounds/` directory. `doctor` reports
+  playback as available when a player is installed, which the container has; if
+  no sink is reachable, the play fails at press time with the player's error
+  rather than being refused up front.
 
 ### 4.2 What does not work
 
@@ -353,6 +386,7 @@ Everything the host persists lives under the configuration directory
 | Path | What it is | How to treat it |
 |------|------------|-----------------|
 | `profiles/` | Deck layouts the host serves, one directory per profile. | Back up; it is the artefact worth versioning. The repo's own `profiles/` directory holds the canonical example and is git-tracked. |
+| `sounds/` | Audio files a soundboard pad may play. A file must live here to be playable, and the panel's Sounds tab drops uploads into it. | Back up if the board uses sounds; the files are not reproducible from a profile, which only references them by name. |
 | `config.json` | Host name, bind, port, TLS and limits. | Back up; hand-editable. |
 | `tls/` | The self-signed certificate and key. | Back up with the config if clients pin the fingerprint; otherwise a new certificate forces every client to re-verify. |
 | `devices.json` | Paired device records and token **hashes** (0600). | Machine-local secret. Do not commit or share; back up only if you want pairings to survive. |

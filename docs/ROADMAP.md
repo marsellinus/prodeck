@@ -5,7 +5,8 @@ makes it "done", and what it explicitly defers. Nothing is "done" because a
 build succeeds: it is done when the criterion below is observable.
 
 Terminology: **Phase 1** is the project's Milestone 1. The ADRs in `docs/adr/`
-all carry `Status: accepted (Milestone 1)`.
+carry their milestone in the status line: `0001`–`0010` are Milestone 1,
+`0011` is Milestone 2, and `0012`–`0013` are Milestone 3.
 
 ---
 
@@ -24,16 +25,17 @@ part of the slice, not follow-ups.
   what is deliberately absent.
 - `docs/SECURITY.md` — assets, trust boundaries, the T1–T14 threat table, and
   the security test matrix.
-- `docs/adr/0001`–`0010` — host language, Android stack, JSON envelope, PIN
+- `docs/adr/0001`–`0013` — host language, Android stack, JSON envelope, PIN
   pairing, action registry, TLS pinning, profile-as-directory, transport
-  abstraction, single binary, license.
+  abstraction, single binary, license, desktop control panel, soundboard,
+  tray and browser panel.
 - `host/internal/proto` — envelope, message-type constants, error codes, the
   version gate, ULID generation.
 - `host/internal/profile` — the profile/page/button/action model with strict
   validation and JSON-pointer errors.
-- `host/internal/platform` — `Input`, `Launcher`, `Shell`, `Media`, `Power`,
-  `Metrics` interfaces; the canonical key table; `CommandContext` process-group
-  handling; the Windows SendInput implementation.
+- `host/internal/platform` — `Input`, `Launcher`, `Shell`, `Media`, `Sound`,
+  `Power`, `Metrics` interfaces; the canonical key table; `CommandContext`
+  process-group handling; the Windows SendInput implementation.
 - `host/internal/engine` — the action registry, scope enforcement, the bounded
   worker pool, cancellation, per-button state, and event fan-out.
 - `host/internal/auth` — PIN lifecycle, token issue/verify, device records,
@@ -57,9 +59,10 @@ without re-pairing. Revoking the device returns it to pairing and never loops.
 
 - No USB transport. `Transport` exists on both sides with exactly one
   implementation (LAN WebSocket), per ADR-0008.
-- No visual layout editor; the profile JSON is the editor.
 - No plugin system.
 - No telemetry history, no cloud, no auto-update.
+
+*(The visual layout editor was deferred here and shipped in Phase 4; see below.)*
 
 ---
 
@@ -108,9 +111,9 @@ Milestone 1; the plugin runtime and the plugin catalogue are Phase 3.**
 
 Already shipped in the core: `media.play`, `media.pause`, `media.play_pause`,
 `media.next`, `media.previous`, `media.stop`, `volume.up`, `volume.down`,
-`volume.mute`, `volume.set`, `system.stats`, the `cpu.*`/`mem.*`/`disk.*`/
-`net.*` telemetry metrics, and the `status`, `toggle`, `radio`, `progress`,
-`counter`, and `telemetry` button states.
+`volume.mute`, `volume.set`, `sound.play` and the soundboard around it (ADR-0012),
+`system.stats`, the `cpu.*`/`mem.*`/`disk.*`/`net.*` telemetry metrics, and the
+`status`, `toggle`, `radio`, `progress`, `counter`, and `telemetry` button states.
 
 ### Deliverables
 
@@ -139,16 +142,23 @@ working. No core file is modified to add it.
 
 ## Phase 4 — Visual layout editor, themes, import/export, multiple devices, advanced permissions
 
-**Status: not started.** `profile.export` and `profile.import` exist in the
-protocol; the editor does not.
+**Status: partly shipped.** The visual layout editor landed in Milestone 2 as the
+desktop control panel (`docs/GUI.md`, ADR-0011) and it runs in a browser as well as
+in a window (ADR-0013). Multiple paired devices were done in Milestone 1. Theme
+editing in the editor and the advanced-permission flow are still to come.
 
 ### Deliverables
 
 - A visual layout editor that edits the same `profile.json` files through the
   admin API, never a second storage format (ADR-0007).
+  **Done** (Milestone 2): the panel's Board tab edits the grid the phone shows,
+  at its real size — add, edit, delete, drag to move or swap — and writes through
+  the admin API. Documented in [`GUI.md`](GUI.md).
 - Theme editing with live preview; the theme model already exists in
-  `internal/profile`.
+  `internal/profile`. **Not yet**: the panel switches its own light/dark
+  appearance but does not edit a profile's theme.
 - Profile import/export as JSON, including the `profiles.write` scope path.
+  **CLI only** (`mobiledeck profiles export` / `import`); not in the panel.
 - Multiple paired devices with per-device scopes and names.
   **Done** (Milestone 1): several devices connect at once, each with its own
   record, token and scope set; `mobiledeck devices` lists, renames, enables,
@@ -156,7 +166,9 @@ protocol; the editor does not.
   concurrent sessions and refuses past it with HTTP 503 before the upgrade.
   Documented in [`MULTI_DEVICE.md`](MULTI_DEVICE.md).
 - Advanced permission editing: per-device scope changes, `bind_ip`, and the
-  `require_confirmation` flow surfaced in the client.
+  `require_confirmation` flow surfaced in the client. The panel's Phones tab
+  edits per-device scopes and turns a device on or off; revoking, renaming,
+  `bind_ip` and `require_confirmation` are still CLI and profile-level.
 - QR-assisted pairing (`GET /api/v1/pair/qr` is reserved in PROTOCOL.md §3.1).
 
 ### Acceptance criterion

@@ -4,6 +4,11 @@ How several phones, tablets and laptops share one host. The host has supported
 this at the protocol level from Milestone 1: each connection carries its own
 device token, and scopes are per device. This document is the operator's guide.
 
+Everything here is also reachable without a terminal: the control panel's
+**Phones** tab lists each paired device with its scopes, turns one on or off, and
+edits its scope set (see [`GUI.md`](GUI.md)). Revoking, renaming and the CLI
+details below remain command-line operations.
+
 ---
 
 ## 1. How devices connect
