@@ -652,3 +652,53 @@ func (p *Profile) ImageIconFiles() []string {
 	}
 	return out
 }
+
+// SoundFiles returns the distinct sound file names the document references, in
+// document order.
+//
+// The admin API uses it to refuse deleting a sound a button still plays. The
+// walk descends into macros because a sound is just as broken when it is the
+// third step of a macro as when it is on_press, and a reference the delete check
+// missed would be a button that silently stops working.
+func (p *Profile) SoundFiles() []string {
+	seen := map[string]bool{}
+	var out []string
+	var walk func(a *Action)
+	walk = func(a *Action) {
+		if a == nil {
+			return
+		}
+		if a.Type == "sound.play" {
+			var params struct {
+				File string `json:"file"`
+			}
+			// A malformed params object is ignored here: validation already
+			// rejected it at load time, so there is nothing to report.
+			if err := json.Unmarshal(orEmpty(a.Params), &params); err == nil && params.File != "" && !seen[params.File] {
+				seen[params.File] = true
+				out = append(out, params.File)
+			}
+		}
+		if a.Type == "macro" {
+			var m struct {
+				Steps []Action `json:"steps"`
+			}
+			if err := json.Unmarshal(orEmpty(a.Params), &m); err == nil {
+				for i := range m.Steps {
+					walk(&m.Steps[i])
+				}
+			}
+		}
+	}
+	for i := range p.Pages {
+		page := &p.Pages[i]
+		for j := range page.Buttons {
+			b := &page.Buttons[j]
+			walk(b.OnPress)
+			walk(b.OnLongPress)
+			walk(b.OnRelease)
+			walk(b.OnHold)
+		}
+	}
+	return out
+}

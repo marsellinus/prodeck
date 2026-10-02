@@ -16,6 +16,7 @@ func New() *Platform {
 		Launcher: linuxLauncher{},
 		Shell:    linuxShell{},
 		Media:    &linuxMedia{},
+		Sound:    linuxSound{},
 		Power:    linuxPower{},
 		Metrics:  &linuxMetrics{},
 	}

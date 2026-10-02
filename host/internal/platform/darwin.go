@@ -41,6 +41,7 @@ func New() *Platform {
 		Launcher: darwinLauncher{},
 		Shell:    darwinShell{},
 		Media:    darwinMedia{},
+		Sound:    darwinSound{},
 		Power:    darwinPower{},
 		Metrics:  &darwinMetrics{},
 	}

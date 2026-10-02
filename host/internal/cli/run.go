@@ -351,6 +351,11 @@ func cmdDoctor(env Env, args []string) int {
 	metrics := plat.Metrics.Available()
 	add("telemetry", len(metrics) > 0, strings.Join(metrics, ", "))
 
+	// Sound is a capability the platform adapter answers for itself, and the
+	// directory is where a soundboard file must live to be playable. Reporting
+	// both together means a user who cannot find their files sees the path.
+	add("sound playback", plat.Sound.SoundAvailable(), cfg.SoundsDir)
+
 	caps := plat.Power.Capabilities()
 	add("lock screen", caps.Lock, "")
 	add("power off / restart", caps.Shutdown && caps.Restart,

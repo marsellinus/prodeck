@@ -17,11 +17,19 @@ var ErrUnavailable = errors.New(
 
 // Options configures the window. It mirrors the CGO build so callers compile
 // unchanged either way.
+//
+// Tray and Address exist here even though this build has no window and no
+// notification area: the caller fills in the same struct in both builds, and a
+// field that only exists under CGO would make `go build` fail for exactly the
+// static, cross-compiled binary the package promises to keep working
+// (docs/adr/0009-single-binary-no-docker-dependency.md).
 type Options struct {
-	Addr  string
-	Token string
-	Title string
-	Debug bool
+	Addr    string
+	Token   string
+	Title   string
+	Debug   bool
+	Tray    bool
+	Address string
 }
 
 // Run always fails in this build.

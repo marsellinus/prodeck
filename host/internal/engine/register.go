@@ -24,6 +24,7 @@ func BuildRegistry(plat *platform.Platform, hostName, version string, e *Engine)
 		{"apps", func() error { return registerApps(r, plat, e) }},
 		{"scripts", func() error { return registerScripts(r, plat, e) }},
 		{"media", func() error { return registerMedia(r, plat) }},
+		{"sounds", func() error { return registerSounds(r, plat, e) }},
 		{"system", func() error { return registerSystem(r, plat, hostName, version) }},
 		{"flow", func() error { return registerFlow(r, e) }},
 		{"navigation", func() error { return registerNav(r, e) }},

@@ -125,6 +125,7 @@ func newTestServerPlatform(t *testing.T, plat *platform.Platform) *testServer {
 	cfg.TLS.Enabled = false // loopback, so plaintext is the documented default
 	cfg.Discovery.MDNS = false
 	cfg.ProfilesDir = filepath.Join(dir, "profiles")
+	cfg.SoundsDir = filepath.Join(dir, "sounds")
 	cfg.Logging.Level = "error"
 	cfg.Logging.Console = false
 	if err := cfg.Validate(); err != nil {
@@ -177,6 +178,8 @@ func newTestServerPlatform(t *testing.T, plat *platform.Platform) *testServer {
 
 	eng.SetProfileDir(profReg.DirOf)
 	eng.SetProfileExists(func(id string) bool { _, ok := profReg.Get(id); return ok })
+	eng.SetSoundsDir(cfg.SoundsDir)
+	eng.SetSoundReferenced(profReg.SoundReferenced)
 	eng.SetPageExists(func(pid, pageID string) bool {
 		p, ok := profReg.Get(pid)
 		if !ok {

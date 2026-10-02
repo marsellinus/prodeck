@@ -400,6 +400,7 @@ func New() *Platform {
 		Launcher: windowsLauncher{},
 		Shell:    windowsShell{},
 		Media:    windowsMedia{input: &windowsInput{}},
+		Sound:    windowsSound{},
 		Power:    windowsPower{},
 		Metrics:  newWindowsMetrics(),
 	}

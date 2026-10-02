@@ -192,6 +192,14 @@ type Options struct {
 	// depend on the profile loader, and the CLI builds an engine without one.
 	ProfileExists func(profileID string) bool
 	PageExists    func(profileID, pageID string) bool
+	// SoundsDir is the only directory sound.play may play a file from. Empty
+	// means the action has nothing to resolve against and refuses every file.
+	SoundsDir string
+	// SoundReferenced reports whether any loaded profile still uses a sound
+	// file, so the admin API can refuse to delete one that a button depends on.
+	// Injected for the same reason the profile lookups are: the engine must not
+	// depend on the profile loader, and there is one implementation of the walk.
+	SoundReferenced func(file string) bool
 }
 
 // Event is something the engine wants to push to clients.
@@ -311,6 +319,38 @@ func (e *Engine) SetPageExists(fn func(profileID, pageID string) bool) {
 	e.mu.Lock()
 	e.opts.PageExists = fn
 	e.mu.Unlock()
+}
+
+// SetSoundsDir installs the directory sound.play may play from. It is set after
+// construction because the configuration is loaded before the engine is built,
+// and an action that runs without it refuses every file rather than guessing a
+// directory.
+func (e *Engine) SetSoundsDir(dir string) {
+	e.mu.Lock()
+	e.opts.SoundsDir = dir
+	e.mu.Unlock()
+}
+
+// SetSoundReferenced installs the check that reports whether a loaded profile
+// still uses a sound file. The admin API needs it to refuse a delete that would
+// break a button.
+func (e *Engine) SetSoundReferenced(fn func(file string) bool) {
+	e.mu.Lock()
+	e.opts.SoundReferenced = fn
+	e.mu.Unlock()
+}
+
+// SoundReferenced reports whether any loaded profile still uses a sound file.
+// It answers false when no lookup is installed, which is the case for the CLI's
+// `actions` listing and for unit tests.
+func (e *Engine) SoundReferenced(file string) bool {
+	e.mu.Lock()
+	fn := e.opts.SoundReferenced
+	e.mu.Unlock()
+	if fn == nil {
+		return false
+	}
+	return fn(file)
 }
 
 // lookup finds an action, tolerating a nil registry so an engine can be

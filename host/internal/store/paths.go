@@ -19,6 +19,7 @@ type Paths struct {
 	Devices     string // devices.json
 	Audit       string // audit.jsonl
 	ProfilesDir string // profiles/
+	SoundsDir   string // sounds/
 	LogsDir     string // logs/
 	TLSDir      string // tls/
 	ScriptsDir  string // scripts/, resolved relative to the working dir
@@ -54,6 +55,7 @@ func Resolve(root string) (Paths, error) {
 		Devices:     filepath.Join(abs, "devices.json"),
 		Audit:       filepath.Join(abs, "audit.jsonl"),
 		ProfilesDir: filepath.Join(abs, "profiles"),
+		SoundsDir:   filepath.Join(abs, "sounds"),
 		LogsDir:     filepath.Join(abs, "logs"),
 		TLSDir:      filepath.Join(abs, "tls"),
 		ScriptsDir:  "scripts",

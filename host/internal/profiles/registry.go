@@ -289,6 +289,33 @@ func (r *Registry) Default() *Entry {
 	return list[0]
 }
 
+// SoundReferenced reports whether any loaded profile still plays a sound file.
+//
+// It is the lookup the admin API injects into the engine so deleting a sound
+// that a button depends on is refused. It walks every loaded document rather
+// than only the active one because a profile a phone is not currently showing
+// still breaks the moment it is opened.
+func (r *Registry) SoundReferenced(file string) bool {
+	if file == "" {
+		return false
+	}
+	r.mu.RLock()
+	docs := make([]*profile.Profile, 0, len(r.entries))
+	for _, e := range r.entries {
+		docs = append(docs, e.Doc)
+	}
+	r.mu.RUnlock()
+
+	for _, doc := range docs {
+		for _, used := range doc.SoundFiles() {
+			if used == file {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Revision is a content hash of a profile document, used by the client to tell
 // whether its cache is stale and by the host to detect a real change.
 func RevisionOf(raw []byte) string {

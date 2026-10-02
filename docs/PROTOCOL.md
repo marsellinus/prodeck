@@ -519,6 +519,17 @@ performed** (see `docs/SECURITY.md` §4).
 `media.previous`, `media.now_playing`, `volume.up`, `volume.down`,
 `volume.mute`, `volume.set { level: 0..100 }`.
 
+### soundboard *(p: media)*
+| Type | Params |
+|------|--------|
+| `sound.play` | `file` (a bare file name in the host's sounds directory), `volume: 0..100` (optional), `blocking` (optional, default `false`) |
+
+`file` is resolved inside the host's sounds directory and nowhere else; the
+accepted extensions are the ones the admin sound API stores (`.wav`, `.mp3`,
+`.ogg`, `.flac`, `.m4a`, `.aac`, `.opus`). A platform that cannot decode a
+format, or cannot apply a volume level (Windows `PlaySound` has no volume
+control), says so in the action result rather than pretending.
+
 ### system
 `system.stats { metric }` *(p: system.read)*, `system.info` *(p: system.read)*,
 `system.lock`, `system.sleep`, `system.shutdown`, `system.restart`

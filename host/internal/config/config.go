@@ -45,6 +45,7 @@ type Config struct {
 	Engine        Engine    `json:"engine"`
 	ProfilesDir   string    `json:"profiles_dir"`
 	ScriptsDir    string    `json:"scripts_dir"`
+	SoundsDir     string    `json:"sounds_dir"`
 	ActiveProfile string    `json:"active_profile"`
 
 	// AllowAbsolutePaths permits run_script/run_folder to reference paths
@@ -189,6 +190,9 @@ func (c *Config) finish(path string) error {
 	}
 	if c.ScriptsDir == "" {
 		c.ScriptsDir = "scripts"
+	}
+	if c.SoundsDir == "" {
+		c.SoundsDir = filepath.Join(filepath.Dir(path), "sounds")
 	}
 	return c.Validate()
 }

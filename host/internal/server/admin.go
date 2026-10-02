@@ -70,6 +70,12 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		s.adminIconImport(w, r)
 	case len(parts) == 3 && parts[0] == "icons" && parts[2] == "preview":
 		s.adminIconPreview(w, r, parts[1])
+	case len(parts) == 1 && parts[0] == "sounds":
+		s.adminSounds(w, r)
+	case len(parts) == 2 && parts[0] == "sounds":
+		s.adminSound(w, r, parts[1])
+	case len(parts) == 3 && parts[0] == "sounds" && parts[2] == "audio":
+		s.adminSoundAudio(w, r, parts[1])
 	case len(parts) == 1 && parts[0] == "pair":
 		s.adminPair(w, r)
 	case len(parts) == 1 && parts[0] == "shutdown":

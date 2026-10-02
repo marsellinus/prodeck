@@ -280,6 +280,36 @@ func (f *fakeMedia) SetVolume(ctx context.Context, p int) error {
 	return f.record("volume_set")
 }
 
+// fakeSound records played files, so the sound action can be tested without a
+// speaker. volumeIgnored makes it behave like the Windows adapter, which cannot
+// set a level, so the detail wording is exercised too.
+type fakeSound struct {
+	platform.Unsupported
+
+	mu            sync.Mutex
+	played        []string
+	volumes       []int
+	blocking      []bool
+	err           error
+	volumeIgnored bool
+}
+
+func (f *fakeSound) PlayFile(ctx context.Context, path string, volume int, blocking bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	f.played = append(f.played, path)
+	f.volumes = append(f.volumes, volume)
+	f.blocking = append(f.blocking, blocking)
+	return nil
+}
+
+func (f *fakeSound) SoundAvailable() bool { return true }
+
+func (f *fakeSound) VolumeIgnored() bool { return f.volumeIgnored }
+
 // fakePower reports configurable capabilities.
 type fakePower struct {
 	platform.Unsupported
@@ -325,6 +355,7 @@ type harness struct {
 	shell  *fakeShell
 	launch *fakeLauncher
 	media  *fakeMedia
+	sound  *fakeSound
 	power  *fakePower
 	plat   *platform.Platform
 
@@ -342,6 +373,7 @@ func newHarness(t *testing.T, opts Options) *harness {
 		shell:  &fakeShell{},
 		launch: &fakeLauncher{},
 		media:  &fakeMedia{},
+		sound:  &fakeSound{},
 		power:  &fakePower{caps: platform.PowerCaps{Lock: true, Shutdown: true, Restart: true, Sleep: true}},
 		dir:    t.TempDir(),
 	}
@@ -351,6 +383,7 @@ func newHarness(t *testing.T, opts Options) *harness {
 		Launcher: h.launch,
 		Shell:    h.shell,
 		Media:    h.media,
+		Sound:    h.sound,
 		Power:    h.power,
 		Metrics:  &fakeMetrics{values: map[string]float64{"cpu.usage": 12.5}},
 	}
@@ -365,6 +398,9 @@ func newHarness(t *testing.T, opts Options) *harness {
 	}
 	if opts.ScriptRoots == nil {
 		opts.ScriptRoots = []string{h.dir}
+	}
+	if opts.SoundsDir == "" {
+		opts.SoundsDir = h.dir
 	}
 	h.eng = New(nil, h.plat, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 		opts,
@@ -474,6 +510,7 @@ func TestEveryCatalogueTypeIsRegistered(t *testing.T) {
 		"media.play", "media.pause", "media.play_pause", "media.stop",
 		"media.next", "media.previous", "media.now_playing",
 		"volume.up", "volume.down", "volume.mute", "volume.set",
+		"sound.play",
 		"system.stats", "system.info", "system.lock", "system.sleep",
 		"system.shutdown", "system.restart",
 		"deck.open_page", "deck.back", "deck.change_profile", "deck.notify",
@@ -997,6 +1034,124 @@ func TestMediaVerbsRouteToTheRightCall(t *testing.T) {
 	}
 	if _, err := h.run(t, "volume.set", `{"level":101}`, nil); err == nil {
 		t.Fatal("volume.set accepted an out-of-range level")
+	}
+}
+
+// TestSoundPlayConfinementIsThePoint is the security test for sound.play: the
+// file parameter becomes a path, so anything that is not a bare name inside the
+// sounds directory must be refused before the platform is called.
+func TestSoundPlayConfinementIsThePoint(t *testing.T) {
+	cases := []struct {
+		name   string
+		params string
+	}{
+		{"parent reference", `{"file":"../secret.wav"}`},
+		{"absolute path", `{"file":"/etc/passwd.wav"}`},
+		{"windows absolute path", `{"file":"C:\\\\Windows\\\\win.wav"}`},
+		{"nested path", `{"file":"sub/boom.wav"}`},
+		{"empty name", `{"file":""}`},
+		{"no extension", `{"file":"boom"}`},
+		{"non-audio extension", `{"file":"boom.exe"}`},
+		{"unknown field", `{"file":"boom.wav","loud":true}`},
+		{"volume too high", `{"file":"boom.wav","volume":101}`},
+		{"volume negative", `{"file":"boom.wav","volume":-1}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, Options{})
+			if _, err := h.run(t, "sound.play", tc.params, nil); err == nil {
+				t.Fatalf("accepted %s", tc.params)
+			}
+			if len(h.sound.played) != 0 {
+				t.Errorf("a refused file still reached the platform: %v", h.sound.played)
+			}
+		})
+	}
+}
+
+// TestSoundPlayResolvesInsideTheDirectory covers the happy path and the two
+// defaults that matter: non-blocking, and no volume unless one was asked for.
+func TestSoundPlayResolvesInsideTheDirectory(t *testing.T) {
+	h := newHarness(t, Options{})
+	if err := os.WriteFile(filepath.Join(h.dir, "boom.wav"), []byte("RIFF"), 0o600); err != nil {
+		t.Fatalf("writing the sound: %v", err)
+	}
+
+	res, err := h.run(t, "sound.play", `{"file":"boom.wav"}`, nil)
+	if err != nil {
+		t.Fatalf("sound.play: %v", err)
+	}
+	if len(h.sound.played) != 1 {
+		t.Fatalf("played = %v", h.sound.played)
+	}
+	if filepath.Dir(h.sound.played[0]) != h.dir {
+		t.Errorf("resolved path = %q, want it inside %q", h.sound.played[0], h.dir)
+	}
+	if h.sound.volumes[0] != -1 {
+		t.Errorf("volume = %d, want -1 (not asked for)", h.sound.volumes[0])
+	}
+	if h.sound.blocking[0] {
+		t.Error("a press blocked by default")
+	}
+	if res.Detail != "played boom.wav" {
+		t.Errorf("detail = %q", res.Detail)
+	}
+
+	// An explicit volume and blocking flag are passed through.
+	if _, err := h.run(t, "sound.play", `{"file":"boom.wav","volume":30,"blocking":true}`, nil); err != nil {
+		t.Fatalf("sound.play with volume: %v", err)
+	}
+	if h.sound.volumes[1] != 30 || !h.sound.blocking[1] {
+		t.Errorf("volume/blocking = %d/%v, want 30/true", h.sound.volumes[1], h.sound.blocking[1])
+	}
+}
+
+// TestSoundPlayReportsAnIgnoredVolume checks the honesty requirement: a platform
+// that cannot set a level must say so rather than claiming one was applied.
+func TestSoundPlayReportsAnIgnoredVolume(t *testing.T) {
+	h := newHarness(t, Options{})
+	h.sound.volumeIgnored = true
+	if err := os.WriteFile(filepath.Join(h.dir, "boom.wav"), []byte("RIFF"), 0o600); err != nil {
+		t.Fatalf("writing the sound: %v", err)
+	}
+
+	res, err := h.run(t, "sound.play", `{"file":"boom.wav","volume":20}`, nil)
+	if err != nil {
+		t.Fatalf("sound.play: %v", err)
+	}
+	if !strings.Contains(res.Detail, "cannot set the volume") {
+		t.Errorf("detail = %q, want it to admit the volume was ignored", res.Detail)
+	}
+}
+
+// TestSoundPlayRefusesASymlinkOutOfTheDirectory covers the subtle escape: a link
+// planted in the sounds directory that points at a file elsewhere must not be
+// followed, because the name check alone would accept it.
+func TestSoundPlayRefusesASymlinkOutOfTheDirectory(t *testing.T) {
+	h := newHarness(t, Options{})
+	outside := filepath.Join(filepath.Dir(h.dir), "outside.wav")
+	if err := os.WriteFile(outside, []byte("RIFF"), 0o600); err != nil {
+		t.Fatalf("writing the target: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(outside) })
+
+	if err := os.Symlink(outside, filepath.Join(h.dir, "escape.wav")); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	if _, err := h.run(t, "sound.play", `{"file":"escape.wav"}`, nil); err == nil {
+		t.Fatal("a symlink escaping the sounds directory was followed")
+	}
+}
+
+// TestSoundPlayRefusesAMissingFile checks that a stale reference gives a clear
+// error rather than reaching the platform with a path that is not there.
+func TestSoundPlayRefusesAMissingFile(t *testing.T) {
+	h := newHarness(t, Options{})
+	if _, err := h.run(t, "sound.play", `{"file":"gone.wav"}`, nil); err == nil {
+		t.Fatal("a missing file was accepted")
+	}
+	if len(h.sound.played) != 0 {
+		t.Errorf("a missing file reached the platform: %v", h.sound.played)
 	}
 }
 

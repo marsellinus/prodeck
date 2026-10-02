@@ -154,6 +154,12 @@ func Build(cfg config.Config, paths store.Paths, version string, console bool) (
 		_, ok = prof.Page(pageID)
 		return ok
 	})
+	// The sound action resolves files against the configured directory, and the
+	// admin API asks the registry whether a file is still in use before deleting
+	// it. Both lookups are injected for the same reason as the profile ones: the
+	// engine and the server must not depend on where the loader keeps its state.
+	eng.SetSoundsDir(cfg.SoundsDir)
+	eng.SetSoundReferenced(profReg.SoundReferenced)
 
 	// Cross-check telemetry bindings against the metrics this host produces, so
 	// a profile that reads gpu.usage on a machine without a GPU sampler fails at
