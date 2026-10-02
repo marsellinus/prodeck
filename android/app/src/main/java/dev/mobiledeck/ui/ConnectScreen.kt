@@ -133,9 +133,10 @@ private fun StatusBanner(state: DeckUiState) {
     val (label, color) = when (state.connection) {
         ConnectionState.Connected -> "Connected to ${state.hostName}" to MaterialTheme.colorScheme.primary
         ConnectionState.Connecting -> "Connecting…" to MaterialTheme.colorScheme.primary
-        ConnectionState.Pairing -> "Pairing…" to MaterialTheme.colorScheme.primary
+        ConnectionState.Pairing -> "Waiting for a PIN" to MaterialTheme.colorScheme.primary
         ConnectionState.Reconnecting -> (state.status ?: "Reconnecting…") to MaterialTheme.colorScheme.error
-        ConnectionState.Disconnected -> (state.status ?: "Not connected") to MaterialTheme.colorScheme.onSurfaceVariant
+        ConnectionState.Disconnected ->
+            (state.status ?: "Not connected. Pick your computer below.") to MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Surface(
@@ -165,6 +166,36 @@ private fun StatusBanner(state: DeckUiState) {
     }
 }
 
+/**
+ * What to try, shown above the host's own sentence.
+ *
+ * The host's sentence is kept because it is the specific part ("PIN is wrong,
+ * expired, or already used") and rewriting it here would lose that. What it
+ * never says is what the person should do about it, and a card that only reports
+ * a failure leaves them with a screen and no next move — so the plain sentence
+ * comes first and the host's detail follows it.
+ *
+ * The classification is on our own messages (`PairingApi`, `CloseCode`), which
+ * is why it can be this blunt: they are a closed set, and an unrecognised one
+ * falls through to advice that is true of every network failure.
+ */
+private fun errorAdvice(message: String): String = when {
+    message.contains("PIN", ignoreCase = true) || message.contains("attempt", ignoreCase = true) ->
+        "Type the 6-digit PIN from the control panel on your computer. " +
+            "Press “Show a PIN” there if it has expired."
+
+    message.contains("revoked", ignoreCase = true) || message.contains("token", ignoreCase = true) ->
+        "This phone has to be set up again: press “Show a PIN” on your computer, then type the new PIN below."
+
+    message.contains("fingerprint", ignoreCase = true) || message.contains("TLS", ignoreCase = true) ->
+        "Connect from the list of computers below instead of typing an address."
+
+    message.contains("busy", ignoreCase = true) || message.contains("rate", ignoreCase = true) ->
+        "Wait a minute, then try again — the computer is refusing new connections for now."
+
+    else -> "Check the phone and the computer are on the same Wi-Fi, then try again."
+}
+
 @Composable
 private fun ErrorCard(message: String, onDismiss: () -> Unit) {
     Card(
@@ -182,16 +213,23 @@ private fun ErrorCard(message: String, onDismiss: () -> Unit) {
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.width(10.dp))
-            Text(
-                text = message,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = errorAdvice(message),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
                 Icon(
                     imageVector = Icons.Filled.Close,
-                    contentDescription = "Dismiss",
+                    contentDescription = "Close this message",
                     tint = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
@@ -248,11 +286,23 @@ private fun PairingSection(pairing: PairingUiState, busy: Boolean, onPair: (Stri
 
             Text(
                 text = if (pairing.pairingOpen) {
-                    "Run `mobiledeck pair` on the host and type the 6-digit PIN it prints."
+                    "On your computer, open the control panel and press “Connect a phone”, then press " +
+                        "“Show a PIN”. Type that PIN here. It is good for two minutes."
                 } else {
-                    "This host is not accepting pairing right now."
+                    "Open the control panel on your computer and press “Connect a phone”, then press " +
+                        "“Show a PIN”. The PIN box below comes alive the moment you do."
                 },
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // The terminal path, kept second and kept small: the panel is the way
+            // in for the person this screen is for, but a user who is already in
+            // a shell should not have to go looking for a window they may not
+            // have open.
+            Text(
+                text = "Prefer a terminal? Run `mobiledeck pair` on the computer: it prints the same PIN.",
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
@@ -290,7 +340,7 @@ private fun PairingSection(pairing: PairingUiState, busy: Boolean, onPair: (Stri
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text("Pair")
+                Text("Connect this phone")
             }
 
             if (pairing.ready && pairing.pairingOpen) {
@@ -300,13 +350,22 @@ private fun PairingSection(pairing: PairingUiState, busy: Boolean, onPair: (Stri
     }
 }
 
-/** The SHA-256 fingerprint, grouped for comparison against the host's output. */
+/**
+ * The security code, grouped for comparison against the one the computer shows.
+ *
+ * The comparison is the whole point of the block, so the block says so: a code
+ * with no instruction to check it against anything is decoration, and a user who
+ * has never been told to compare it cannot tell a real host from a rogue one
+ * that answered mDNS first (docs/SECURITY.md T9). The "none" case is stated in
+ * terms of what it means for the user rather than as a missing value, because
+ * "none" on its own reads as something being broken.
+ */
 @Composable
 private fun FingerprintBlock(fingerprint: String?, hostOs: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "TLS fingerprint",
+                text = "Security code",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -316,7 +375,7 @@ private fun FingerprintBlock(fingerprint: String?, hostOs: String) {
             }
         }
         Text(
-            text = fingerprint ?: "none — the host runs without TLS",
+            text = fingerprint ?: "no code — this computer is not using a secure connection",
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
             color = if (fingerprint == null) {
                 MaterialTheme.colorScheme.error
@@ -324,6 +383,16 @@ private fun FingerprintBlock(fingerprint: String?, hostOs: String) {
                 MaterialTheme.colorScheme.onSurface
             },
             maxLines = 3,
+        )
+        Text(
+            text = if (fingerprint == null) {
+                "Fine at home on your own Wi-Fi. On public Wi-Fi, someone nearby could read your PIN."
+            } else {
+                "Compare it with the code on your computer — `mobiledeck status` prints it. " +
+                    "If they differ, stop: this may not be your computer."
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -451,7 +520,7 @@ private fun DiscoveredHostsSection(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "Discovered hosts",
+                text = "Your computers",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
@@ -460,14 +529,14 @@ private fun DiscoveredHostsSection(
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
             }
             IconButton(onClick = onRefresh, enabled = !scanning) {
-                Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Rescan")
+                Icon(imageVector = Icons.Filled.Refresh, contentDescription = "Look again")
             }
         }
 
         if (hosts.isEmpty()) {
             Text(
-                text = "No hosts discovered. mDNS needs the phone and the host on the same network; " +
-                    "the manual field below always works.",
+                text = "None found. Check MobileDeck is running on your computer and that both are on the " +
+                    "same Wi-Fi. If that fails, type the address below instead.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -515,7 +584,10 @@ private fun HostRow(host: DiscoveredHost, onClick: () -> Unit) {
                         append(host.authority)
                         if (host.fingerprint.isNotEmpty()) {
                             withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) {
-                                append("  · pinned")
+                                // The same word the control panel uses for the same
+                                // fact, so the two screens cannot describe one host
+                                // differently.
+                                append("  ·  secure")
                             }
                         }
                     },
@@ -529,7 +601,7 @@ private fun HostRow(host: DiscoveredHost, onClick: () -> Unit) {
             if (host.pairingOpen) {
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "PIN",
+                    text = "PIN ready",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
@@ -539,7 +611,7 @@ private fun HostRow(host: DiscoveredHost, onClick: () -> Unit) {
     }
 }
 
-/** A small `windows` / `linux` / `darwin` badge. */
+/** A small `Windows` / `Linux` / `macOS` badge. */
 @Composable
 private fun OsBadge(os: String) {
     Surface(
@@ -547,7 +619,9 @@ private fun OsBadge(os: String) {
         shape = RoundedCornerShape(6.dp),
     ) {
         Text(
-            text = os,
+            // `darwin` is what the host calls macOS, and the kernel's name for a
+            // computer is not the name the person reading it uses.
+            text = plainOsName(os),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -556,10 +630,12 @@ private fun OsBadge(os: String) {
 }
 
 /**
- * Manual `host:port` entry, always available (PROTOCOL.md §4.2).
+ * Manual address entry, always available (PROTOCOL.md §4.2).
  *
  * It accepts a bare host and assumes the default port, because typing a port on
- * a phone keyboard is the part people get wrong.
+ * a phone keyboard is the part people get wrong. The label still says `host:port`
+ * rather than the plain phrase: the user reads the address off another screen and
+ * has to be able to tell that the two are the same kind of thing.
  */
 @Composable
 private fun ManualHostSection(onConnect: (String) -> Unit) {
@@ -568,7 +644,7 @@ private fun ManualHostSection(onConnect: (String) -> Unit) {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "Manual host",
+            text = "Your computer's address",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
@@ -576,7 +652,7 @@ private fun ManualHostSection(onConnect: (String) -> Unit) {
             value = value,
             onValueChange = { value = it.trim() },
             singleLine = true,
-            label = { Text("host:port") },
+            label = { Text("address") },
             placeholder = { Text("192.168.1.10:8765") },
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Uri,
@@ -619,10 +695,10 @@ private fun ManualHostSection(onConnect: (String) -> Unit) {
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
-            Text("Connect over USB")
+            Text("Connect with a cable")
         }
         Text(
-            text = "USB needs one command on the computer: " +
+            text = "For a cable: run this once on your computer, then press the button above.\n" +
                 "adb reverse tcp:${DeckStore.DEFAULT_HOST_PORT} tcp:${DeckStore.DEFAULT_HOST_PORT}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

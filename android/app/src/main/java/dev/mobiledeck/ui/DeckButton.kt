@@ -14,6 +14,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,6 +57,7 @@ import dev.mobiledeck.ui.theme.parseColor
 import dev.mobiledeck.ui.theme.readableOn
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
 
 /**
  * The 400 ms long-press threshold.
@@ -367,15 +369,32 @@ private fun StateDecoration(
             val progress = (override?.progress ?: override?.value)?.coerceIn(0.0, 1.0)
             if (progress != null) {
                 Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { progress.toFloat() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = parseColor(override?.color) ?: MaterialTheme.colorScheme.primary,
-                    trackColor = tint.copy(alpha = 0.2f),
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    LinearProgressIndicator(
+                        progress = { progress.toFloat() },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = parseColor(override?.color) ?: MaterialTheme.colorScheme.primary,
+                        trackColor = tint.copy(alpha = 0.2f),
+                    )
+                    // A bar on its own does not say what it is measuring or how
+                    // far along it is. The percentage is the reading the bar is
+                    // drawing, and PROTOCOL.md §5.2 defines it as 0..1, so it is
+                    // printed rather than guessed. It sits beside the bar instead
+                    // of under it because a five-row grid leaves the tile about
+                    // 90 dp tall and a second line would be clipped.
+                    Text(
+                        text = "${(progress * 100).roundToInt()}%",
+                        color = tint.copy(alpha = 0.75f),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                }
             } else {
                 SubLabel(button.sublabel, tint)
             }
@@ -388,11 +407,16 @@ private fun StateDecoration(
             val counter = override?.value
             if (counter != null) {
                 Text(
-                    text = formatNumber(counter),
+                    // A bare number does not say what it counts. The host's own
+                    // label does ("12 Running"), and it arrives in the same event
+                    // as the value, so it is preferred; without one the number
+                    // stands alone rather than gaining a word invented here.
+                    text = override?.label?.takeIf { it.isNotBlank() } ?: formatNumber(counter),
                     color = tint,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             } else {
                 SubLabel(button.sublabel, tint)
@@ -401,7 +425,7 @@ private fun StateDecoration(
 
         ButtonState.TELEMETRY -> Text(
             text = if (telemetryValue != null) {
-                formatMetric(button.state.format, telemetryValue)
+                telemetryText(button.state.format, telemetryValue, button.state.metric)
             } else {
                 // PROTOCOL.md §7: an unavailable metric renders as `--`, never
                 // as zero, because zero is a plausible reading and would lie.
@@ -516,3 +540,26 @@ internal fun formatMetric(format: String?, value: Double): String {
 /** Trims a double to something a small tile can show. */
 internal fun formatNumber(value: Double): String =
     if (value == value.toLong().toDouble()) value.toLong().toString() else "%.1f".format(value)
+
+/**
+ * The telemetry reading with a unit, unless the profile's format already carries
+ * one.
+ *
+ * PROTOCOL.md §7 sends bare numbers; the unit is only in the metric's name, and a
+ * profile is free to leave it out of its format string. `mem.used_bytes` then
+ * renders as `4294967296`, which is a number the reader cannot act on — so a
+ * known metric name supplies the unit the profile did not.
+ *
+ * The unit is appended only when the rendered text ends in a digit, which is how
+ * a format that already names its unit is detected without parsing it twice: a
+ * format like `{value:.0f}%` or `{value:.0f} Mbps down` ends in something else,
+ * and gains nothing. [formatMetric] is left alone because it is the profile's own
+ * renderer, tested against the formats a profile can contain, and it has no
+ * business knowing which metric it is rendering.
+ */
+internal fun telemetryText(format: String?, value: Double, metric: String?): String {
+    val rendered = formatMetric(format, value)
+    val unit = metricUnit(metric) ?: return rendered
+    val last = rendered.lastOrNull()
+    return if (last != null && last.isDigit()) rendered + unit else rendered
+}

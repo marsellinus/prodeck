@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.mobiledeck.data.Button
@@ -194,7 +195,7 @@ private fun DeckTopBar(
 
             if (state.profileIsCached) {
                 Text(
-                    text = "offline",
+                    text = "saved copy",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(end = 4.dp),
@@ -218,6 +219,12 @@ private fun DeckTopBar(
  * ARCHITECTURE.md §4: a dead network shows a grey "Reconnecting…" banner over a
  * usable, non-interactive grid instead of a blank screen. The tiles stay visible
  * and dimmed (see [DeckButton]) rather than being replaced by a spinner.
+ *
+ * The banner leads with the host's own sentence when there is one, because it is
+ * the specific part ("Reconnecting to study-laptop…", "Token rejected or revoked.
+ * Pair again."), and adds a plain line underneath saying whether anything is
+ * expected of the reader. A banner that only reports state leaves someone staring
+ * at a dimmed board with no way to tell waiting from broken.
  */
 @Composable
 private fun ConnectionStrip(state: DeckUiState, onReconnect: () -> Unit) {
@@ -227,6 +234,22 @@ private fun ConnectionStrip(state: DeckUiState, onReconnect: () -> Unit) {
     val reconnecting = state.connection == ConnectionState.Reconnecting ||
         state.connection == ConnectionState.Connecting ||
         state.connection == ConnectionState.Pairing
+
+    // Three different situations share this strip, and they need different words:
+    // a live session that is still fetching the board, a session that is retrying,
+    // and no session at all. The colours are unchanged (grey while retrying, red
+    // otherwise) — only the sentences are.
+    val liveButCached = state.connection == ConnectionState.Connected && state.profileIsCached
+    val lead = state.status ?: when {
+        reconnecting -> if (state.connection == ConnectionState.Connecting) "Connecting…" else "Reconnecting…"
+        liveButCached -> "Getting your board from the computer…"
+        else -> "Not connected."
+    }
+    val advice = when {
+        reconnecting -> "This keeps trying by itself."
+        liveButCached -> "The board below is the copy saved on this phone."
+        else -> "Press Retry, or check MobileDeck is running on your computer."
+    }
 
     Surface(
         color = if (reconnecting) {
@@ -244,14 +267,20 @@ private fun ConnectionStrip(state: DeckUiState, onReconnect: () -> Unit) {
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(10.dp))
             }
-            Text(
-                text = state.status
-                    ?: if (state.profileIsCached) "Showing the cached profile." else "Disconnected.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = lead,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                )
+                Text(
+                    text = advice,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                )
+            }
             if (!reconnecting) {
                 Text(
                     text = "Retry",
@@ -288,13 +317,25 @@ private fun EmptyDeck(state: DeckUiState, onReconnect: () -> Unit) {
         CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
         Spacer(Modifier.height(16.dp))
         Text(
-            text = state.status ?: "Loading the deck…",
+            text = state.status ?: "Getting your board from the computer…",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            // This screen is what a first-time user sees before anything arrives,
+            // so it names the two things that could be wrong rather than leaving
+            // a spinner to explain itself.
+            text = "This takes a moment the first time. If it does not finish, check MobileDeck is " +
+                "running on your computer and that both are on the same Wi-Fi.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "Reconnect",
+            text = "Try again",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
@@ -515,23 +556,31 @@ private fun SettingsSheet(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
-            text = "Host",
+            text = "Your computer",
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
-        InfoRow("Name", state.hostName.ifBlank { "unknown" })
-        InfoRow("Host id", state.hostId.ifBlank { "unknown" })
-        InfoRow("OS", state.hostOs.ifBlank { "unknown" })
-        InfoRow("Device", state.deviceId.ifBlank { "unpaired" })
-        InfoRow("Connection", state.connection.name.lowercase())
+        InfoRow("Name", state.hostName.ifBlank { "not known yet" })
+        InfoRow("System", state.hostOs.takeIf { it.isNotBlank() }?.let(::plainOsName) ?: "not known yet")
+        InfoRow("Right now", plainConnectionName(state.connection))
+        // The device id is a hex string the host uses to recognise this phone;
+        // it means nothing to the person holding it. The one thing about it they
+        // can act on is whether this phone is paired at all, so that is the row.
+        if (state.deviceId.isBlank()) {
+            InfoRow("This phone", "not paired yet")
+        }
         if (state.scopes.isNotEmpty()) {
-            InfoRow("Scopes", state.scopes.sorted().joinToString(", "))
+            // A comma-joined list of scope ids is a permission the user cannot
+            // read and therefore cannot check. The words are the panel's own, so
+            // the two screens cannot describe one permission differently, and a
+            // scope this build does not know still prints rather than vanishing.
+            InfoRow("This phone may", state.scopes.sorted().joinToString(", ") { plainScopeName(it) })
         }
 
         if (state.telemetry.isNotEmpty()) {
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "Host telemetry",
+                text = "Readings from your computer",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -539,14 +588,14 @@ private fun SettingsSheet(
                 .sortedBy { it.key }
                 .take(6)
                 .forEach { (metric, value) ->
-                    InfoRow(metric, formatNumber(value))
+                    InfoRow(plainMetricName(metric), formatNumber(value))
                 }
         }
 
         if (state.profiles.isNotEmpty()) {
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "Profiles",
+                text = "Boards",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -573,7 +622,7 @@ private fun SettingsSheet(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "${summary.pages.size} pages",
+                            text = if (summary.pages.size == 1) "1 screen" else "${summary.pages.size} screens",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -590,7 +639,7 @@ private fun SettingsSheet(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = "Reconnect",
+                text = "Connect again",
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
             )
@@ -602,7 +651,7 @@ private fun SettingsSheet(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(
-                text = "Disconnect",
+                text = "Disconnect this phone",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
