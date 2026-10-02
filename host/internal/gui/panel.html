@@ -650,9 +650,11 @@ document.getElementById("theme-btn").onclick = () =>
 applyTheme((() => { try { return localStorage.getItem("md.theme") || "dark"; } catch (_) { return "dark"; } })());
 
 // ── state ─────────────────────────────────────────────────────────────────
-let status = null, actions = [], boards = [], sounds = [];
+let status = null, actions = [], boards = [], sounds = [], soundsUnsupported = false;
 let board = null, screenID = null, selected = null;
 let editKeys = null;
+// The sequence being built in the "do several things" form.
+let seq = [];
 let LAST = {};
 
 function showTab(name) {
@@ -714,18 +716,33 @@ async function loadSounds() {
   try {
     const data = await api("GET", "/api/v1/admin/sounds").catch(e => {
       // The sound list is an optional part of the host: a build without it
-      // answers 404, and the panel should say "no sounds yet" rather than fail.
-      if (/unknown admin endpoint|not_found/i.test(e.message)) return { sounds: [], dir: "" };
+      // answers 404. The panel says so once and keeps working, rather than
+      // failing at every press with an error the user cannot act on.
+      if (/unknown admin endpoint|not_found/i.test(e.message)) {
+        soundsUnsupported = true;
+        return { sounds: [], dir: "" };
+      }
       throw e;
     });
+    soundsUnsupported = false;
     sounds = data.sounds || [];
     document.getElementById("sounds-dir").value = data.dir || "";
-    document.getElementById("sounds-hint").textContent = sounds.length
-      ? sounds.length + " sound" + (sounds.length === 1 ? "" : "s") + ". Press one to hear it here."
-      : "No sounds yet. Add one above.";
+    document.getElementById("sounds-hint").textContent = soundsUnsupported
+      ? "This build of the program cannot play sounds yet. Everything else still works."
+      : sounds.length
+        ? sounds.length + " sound" + (sounds.length === 1 ? "" : "s") + ". Press one to hear it here."
+        : "No sounds yet. Add one above.";
+    // The drop zone is the loudest thing on this tab, so it is what says the
+    // feature is missing when the running build has no sound support.
+    const dzEl = document.getElementById("dropzone");
+    if (dzEl) {
+      dzEl.style.display = soundsUnsupported ? "none" : "";
+    }
     const list = document.getElementById("sound-list");
     if (!sounds.length) {
-      list.innerHTML = "<div class='hint'>Nothing here yet.</div>";
+      list.innerHTML = soundsUnsupported
+        ? "<div class='hint'>This build of the program cannot play sounds yet, so nothing can be added here. Everything else on the board still works.</div>"
+        : "<div class='hint'>Nothing here yet.</div>";
       return;
     }
     list.innerHTML = sounds.map(s =>
@@ -829,7 +846,9 @@ async function uploadSound(file) {
     await loadSounds();
     renderBoard();
   } catch (e) {
-    toast("Could not add that file: " + e.message, "err");
+    toast(/unknown admin endpoint|not_found/i.test(e.message)
+      ? "This build of the program cannot play sounds yet. Update it, then try again."
+      : "Could not add that file: " + e.message, "err");
   } finally {
     dz.querySelector("h3").textContent = "Drop an audio file here";
     fileInput.value = "";
@@ -992,6 +1011,9 @@ function shortAction(b) {
   const p = (b.on_press && b.on_press.params) || {};
   switch (t) {
     case "sound.play": return "plays a sound";
+    case "mouse.click": return (p.count > 1 ? p.count + " clicks, " : "clicks, ") + (p.button || "left");
+    case "mouse.scroll": return "scrolls " + (p.dy > 0 ? "down" : p.dy < 0 ? "up" : p.dx > 0 ? "right" : "left");
+    case "macro": return (p.steps || []).length + " step" + ((p.steps || []).length === 1 ? "" : "s") + " in a row";
     case "keyboard.shortcut": return keysFor(b).join("+").toLowerCase() || "key press";
     case "keyboard.text": return "types text";
     case "keyboard.key": return p.key ? p.key.toLowerCase() : "key press";
@@ -1119,10 +1141,19 @@ const WHAT = [
     svg: "<path d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/><path d='M14 3v6h6'/>" },
   { t: "Go back", d: "Returns to the previous screen.", action: "deck.back", icon: "↩",
     svg: "<path d='M9 14L4 9l5-5'/><path d='M4 9h11a5 5 0 0 1 0 10h-3'/>" },
+  { t: "Click the mouse", d: "Clicks wherever the pointer is on this computer.",
+    action: "mouse.click", icon: "🖱️",
+    svg: "<rect x='6' y='2' width='12' height='20' rx='6'/><path d='M12 6v4'/>" },
+  { t: "Scroll", d: "Scrolls up or down, the way the wheel does.",
+    action: "mouse.scroll", icon: "🖲️",
+    svg: "<rect x='6' y='2' width='12' height='20' rx='6'/><path d='M12 7v3M12 12v.01'/>" },
   { t: "Show a message", d: "Shows a short message on the phone.", action: "deck.notify", icon: "💬",
     svg: "<path d='M21 12a8 8 0 0 1-8 8H7l-4 3v-7a8 8 0 1 1 18-4z'/>" },
   { t: "Run a script", d: "Runs a file on this computer. Needs permission.", action: "run_script", icon: "⚙️",
     svg: "<path d='M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14z'/><path d='M12 8v4l2 2'/>" },
+  { t: "Do several things in a row", d: "A sequence: press this, wait, then do that.",
+    action: "macro", icon: "⛓️",
+    svg: "<path d='M9 17H7a5 5 0 0 1 0-10h2'/><path d='M15 7h2a5 5 0 0 1 0 10h-2'/><path d='M8 12h8'/>" },
   { t: "Something else", d: "Any of the other actions this computer offers.", action: "", icon: "•",
     svg: "<circle cx='12' cy='12' r='9'/><path d='M12 8v.01M11 12h1v4h1'/>" },
 ];
@@ -1169,6 +1200,9 @@ const ASK = {
   "deck.change_profile": "board",
   "deck.open_page": "screen",
   "sound.play": "sound",
+  "mouse.click": "click",
+  "mouse.scroll": "scroll",
+  "macro": "sequence",
 };
 
 // The key names the host accepts are its own, uppercase, and it says no to
@@ -1197,11 +1231,15 @@ function backToChoices() {
   document.getElementById("what-title").textContent = "What should this square do?";
 }
 
-function renderAsk(kind, w, row, col) {
-  document.getElementById("what-title").textContent = w.t;
-  document.getElementById("what-choices").style.display = "none";
-  const extra = document.getElementById("what-extra");
-  const add = params => { closeWhat(); commitWhat(w, params, row, col); };
+function renderAsk(kind, w, row, col, into, container) {
+  const extra = container || document.getElementById("what-extra");
+  if (!container) {
+    document.getElementById("what-title").textContent = w.t;
+    document.getElementById("what-choices").style.display = "none";
+  }
+  // into is how a step inside a sequence receives its answer. Without it the
+  // answer becomes a square on the board.
+  const add = into || (params => { closeWhat(); commitWhat(w, params, row, col); });
 
   const foot = label =>
     "<div class='row' style='margin-top:18px'>" +
@@ -1236,10 +1274,10 @@ function renderAsk(kind, w, row, col) {
     // and the catalog covers keys the keyboard in front of you does not have.
     const mods = new Set();
     let one = "";
-    const rec = document.getElementById("ask-rec");
-    const chordEl = document.getElementById("ask-chord");
-    const sayEl = document.getElementById("ask-say");
-    const okBtn = document.getElementById("ask-ok");
+    const rec = extra.querySelector("#ask-rec");
+    const chordEl = extra.querySelector("#ask-chord");
+    const sayEl = extra.querySelector("#ask-say");
+    const okBtn = extra.querySelector("#ask-ok");
 
     const paint = () => {
       const order = MODIFIERS.filter(m => mods.has(m));
@@ -1288,6 +1326,160 @@ function renderAsk(kind, w, row, col) {
     rec.focus();
   }
 
+  else if (kind === "click") {
+    // Which button, and how many times. The host's names for these are
+    // left/right/middle and a count, which is not what anyone would guess.
+    extra.innerHTML =
+      "<div class='ask'>" +
+        "<div><span class='hint'>Which button</span><div class='combo' id='ask-btn'>" +
+          [["left", "Left"], ["right", "Right"], ["middle", "Middle"]]
+            .map(([v, label]) => "<button type='button' class='chip' data-v='" + v + "'>" + label + "</button>").join("") +
+        "</div></div>" +
+        "<div><span class='hint'>How many times</span><div class='combo' id='ask-count'>" +
+          [1, 2, 3].map(n => "<button type='button' class='chip' data-n='" + n + "'>" +
+            (n === 1 ? "Once" : n === 2 ? "Twice" : n + " times") + "</button>").join("") +
+        "</div></div>" +
+        "<p class='hint'>It clicks wherever the pointer already is. Move it there first, " +
+        "or make a sequence that moves it.</p>" +
+        foot("Add this square") +
+      "</div>";
+    let btn = "left", count = 1;
+    const paint = () => {
+      extra.querySelectorAll("#ask-btn .chip").forEach(b => b.classList.toggle("on", b.dataset.v === btn));
+      extra.querySelectorAll("#ask-count .chip").forEach(b => b.classList.toggle("on", Number(b.dataset.n) === count));
+    };
+    extra.querySelectorAll("#ask-btn .chip").forEach(b => b.onclick = () => { btn = b.dataset.v; paint(); });
+    extra.querySelectorAll("#ask-count .chip").forEach(b => b.onclick = () => { count = Number(b.dataset.n); paint(); });
+    extra.querySelector("#ask-ok").onclick = () => add({ button: btn, count: count });
+    paint();
+  }
+
+  else if (kind === "scroll") {
+    extra.innerHTML =
+      "<div class='ask'>" +
+        "<div><span class='hint'>Which way</span><div class='combo' id='ask-dir'>" +
+          [["up", "Up"], ["down", "Down"], ["left", "Left"], ["right", "Right"]]
+            .map(([v, label]) => "<button type='button' class='chip' data-v='" + v + "'>" + label + "</button>").join("") +
+        "</div></div>" +
+        "<div><span class='hint'>How far</span><div class='combo' id='ask-amt'>" +
+          [[3, "A little"], [10, "A screenful"], [30, "A long way"]]
+            .map(([n, label]) => "<button type='button' class='chip' data-n='" + n + "'>" + label + "</button>").join("") +
+        "</div></div>" +
+        foot("Add this square") +
+      "</div>";
+    let dir = "down", amt = 10;
+    const paint = () => {
+      extra.querySelectorAll("#ask-dir .chip").forEach(b => b.classList.toggle("on", b.dataset.v === dir));
+      extra.querySelectorAll("#ask-amt .chip").forEach(b => b.classList.toggle("on", Number(b.dataset.n) === amt));
+    };
+    extra.querySelectorAll("#ask-dir .chip").forEach(b => b.onclick = () => { dir = b.dataset.v; paint(); });
+    extra.querySelectorAll("#ask-amt .chip").forEach(b => b.onclick = () => { amt = Number(b.dataset.n); paint(); });
+    extra.querySelector("#ask-ok").onclick = () => {
+      // The host takes dx/dy in wheel notches, and a wheel scrolls up for a
+      // negative dy, so "down" is positive.
+      const params = dir === "up" ? { dy: -amt } : dir === "down" ? { dy: amt }
+                   : dir === "left" ? { dx: -amt } : { dx: amt };
+      add(params);
+    };
+    paint();
+  }
+
+  else if (kind === "sequence") {
+    // The host's macro is a list of action objects, which is the right wire
+    // format and an impossible thing to ask a person to write. This is a list
+    // of steps in words, built from the same choices the rest of the panel uses.
+    seq = [];
+    extra.innerHTML =
+      "<div class='ask'>" +
+        "<p class='sub'>What should it do, in order?</p>" +
+        "<div id='seq-list'></div>" +
+        "<div class='row tight'>" +
+          "<button class='btn ghost sm' id='seq-add'>Add a step</button>" +
+          "<button class='btn ghost sm' id='seq-wait'>Add a pause</button>" +
+        "</div>" +
+        "<div id='seq-picker'></div>" +
+        foot("Add this square") +
+      "</div>";
+    const list = document.getElementById("seq-list");
+    const picker = document.getElementById("seq-picker");
+
+    const paint = () => {
+      list.innerHTML = seq.length
+        ? seq.map((st, i) =>
+            "<div class='sound-row'>" +
+              "<span class='nm'>" + (i + 1) + ". " + esc(st.label) + "</span>" +
+              "<span class='grow'></span>" +
+              "<button class='btn ghost sm' data-up='" + i + "'" + (i === 0 ? " disabled" : "") + ">Up</button>" +
+              "<button class='btn danger sm' data-rm='" + i + "'>Remove</button>" +
+            "</div>").join("")
+        : "<div class='hint'>Nothing yet. Add the first step.</div>";
+      list.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => {
+        seq.splice(Number(b.dataset.rm), 1); paint();
+      });
+      list.querySelectorAll("[data-up]").forEach(b => b.onclick = () => {
+        const i = Number(b.dataset.up);
+        if (i > 0) { const t = seq[i - 1]; seq[i - 1] = seq[i]; seq[i] = t; paint(); }
+      });
+      picker.innerHTML = "";
+    };
+
+    document.getElementById("seq-add").onclick = () => {
+      // The same list of choices, nested: a step is an action like any other.
+      picker.innerHTML = "<div class='choices' id='seq-choices'>" +
+        WHAT.filter(w => w.action && w.action !== "macro").map((w, i) =>
+          "<button class='choice' data-i='" + i + "'>" +
+            "<span class='t'>" + esc(w.t) + "</span><span class='d'>" + esc(w.d) + "</span></button>").join("") +
+        "</div><button class='btn ghost sm' id='seq-cancel' style='margin-top:10px'>Cancel</button>";
+      document.getElementById("seq-cancel").onclick = paint;
+      const pool = WHAT.filter(w => w.action && w.action !== "macro");
+      picker.querySelectorAll(".choice").forEach(btn => btn.onclick = () => {
+        const w = pool[Number(btn.dataset.i)];
+        // A step is asked for exactly the way a square is: same questions, same
+        // wording. Anything else would be a second way to say the same thing.
+        const into = (params) => {
+          seq.push({ label: describeStep(w, params), step: { type: w.action, params: params } });
+          paint();
+        };
+        if (ASK[w.action]) renderAsk(ASK[w.action], w, null, null, into, picker);
+        else { into({}); }
+      });
+    };
+
+    document.getElementById("seq-wait").onclick = () => {
+      picker.innerHTML =
+        "<div class='ask'>" +
+          "<div><span class='hint'>How long a pause</span><div class='combo' id='seq-ms'>" +
+            [[100, "a moment"], [250, "a quarter second"], [500, "half a second"],
+             [1000, "a second"], [2000, "two seconds"], [5000, "five seconds"]]
+              .map(([n, label]) => "<button type='button' class='chip' data-n='" + n + "'>" + label + "</button>").join("") +
+          "</div></div>" +
+          "<label class='field'><span>Or an exact number of milliseconds</span>" +
+            "<input id='seq-ms-other' type='number' min='0' max='600000' placeholder='200'></label>" +
+          "<div class='row'><button class='btn ghost' id='seq-cancel3'>Cancel</button><span class='grow'></span>" +
+          "<button class='btn' id='seq-wait-ok'>Add the pause</button></div>" +
+        "</div>";
+      const input = document.getElementById("seq-ms-other");
+      let ms = 500;
+      const chips = [...picker.querySelectorAll("#seq-ms .chip")];
+      const paintMs = () => chips.forEach(c => c.classList.toggle("on", Number(c.dataset.n) === ms));
+      chips.forEach(c => c.onclick = () => { ms = Number(c.dataset.n); input.value = ""; paintMs(); });
+      input.oninput = () => { if (input.value !== "") { ms = Number(input.value); paintMs(); } };
+      document.getElementById("seq-cancel3").onclick = paint;
+      document.getElementById("seq-wait-ok").onclick = () => {
+        const n = Math.max(0, Math.min(600000, ms || 0));
+        seq.push({ label: "wait " + n + " ms", step: { type: "delay", params: { ms: n } } });
+        paint();
+      };
+      paintMs();
+    };
+
+    extra.querySelector("#ask-ok").onclick = () => {
+      if (!seq.length) { toast("A sequence needs at least one step.", "err"); return; }
+      add({ steps: seq.map(x => x.step) });
+    };
+    paint();
+  }
+
   else if (kind === "sound") {
     const list = sounds.length
       ? "<div class='pick-grid' id='ask-sounds'>" + sounds.map(s =>
@@ -1302,16 +1494,16 @@ function renderAsk(kind, w, row, col) {
         list + foot("Add this square") +
       "</div>";
     if (!sounds.length) {
-      document.getElementById("ask-gosounds").onclick = () => {
+      extra.querySelector("#ask-gosounds").onclick = () => {
         closeWhat(); showTab("sounds");
       };
-      document.getElementById("ask-ok").disabled = true;
+      extra.querySelector("#ask-ok").disabled = true;
     } else {
       let pick = sounds[0].file;
       const buttons = [...extra.querySelectorAll("#ask-sounds button")];
       const paint = () => buttons.forEach(b => b.classList.toggle("on", b.dataset.f === pick));
       buttons.forEach(b => b.onclick = () => { pick = b.dataset.f; paint(); });
-      document.getElementById("ask-ok").onclick = () => add({ file: pick });
+      extra.querySelector("#ask-ok").onclick = () => add({ file: pick });
       paint();
     }
   }
@@ -1326,7 +1518,7 @@ function renderAsk(kind, w, row, col) {
       extra.innerHTML = "<div class='ask'><div class='empty-state'><h3>Nothing to switch to</h3><p>" +
         (isBoard ? "You have only one board." : "This board has only one screen.") + "</p></div>" +
         "<div class='row'><button class='btn ghost' id='ask-back'>Back</button></div></div>";
-      document.getElementById("ask-back").onclick = backToChoices;
+      extra.querySelector("#ask-back").onclick = backToChoices;
       return;
     }
     extra.innerHTML =
@@ -1341,7 +1533,7 @@ function renderAsk(kind, w, row, col) {
     const buttons = [...extra.querySelectorAll("#ask-items button")];
     const paint = () => buttons.forEach(b => b.classList.toggle("on", b.dataset.id === pick));
     buttons.forEach(b => b.onclick = () => { pick = b.dataset.id; paint(); });
-    document.getElementById("ask-ok").onclick = () => add(isBoard ? { profile_id: pick } : { page_id: pick });
+    extra.querySelector("#ask-ok").onclick = () => add(isBoard ? { profile_id: pick } : { page_id: pick });
     paint();
   }
 
@@ -1369,21 +1561,39 @@ function renderAsk(kind, w, row, col) {
         "<p class='hint' style='margin:-8px 0 0'>" + spec.hint + "</p>" +
         foot("Add this square") +
       "</div>";
-    const input = document.getElementById("ask-value");
+    const input = extra.querySelector("#ask-value");
     input.value = spec.value;
     input.focus();
-    document.getElementById("ask-ok").onclick = () => {
+    extra.querySelector("#ask-ok").onclick = () => {
       const v = input.value.trim();
       if (!v) { input.classList.add("bad"); input.focus(); return; }
       const params = {}; params[spec.param] = v;
       if (kind === "message") params.level = "info";
       add(params);
     };
-    input.onkeydown = ev => { if (ev.key === "Enter") document.getElementById("ask-ok").click(); };
+    input.onkeydown = ev => { if (ev.key === "Enter") extra.querySelector("#ask-ok").click(); };
   }
 
-  const back = document.getElementById("ask-back");
-  if (back) back.onclick = backToChoices;
+  const back = extra.querySelector("#ask-back");
+  if (back) back.onclick = into ? () => document.getElementById("seq-picker").innerHTML = "" : backToChoices;
+}
+
+// describeStep names a step the way the tile names a square, so a sequence reads
+// as a list of things rather than a list of action types.
+function describeStep(w, params) {
+  const p = params || {};
+  switch (w.action) {
+    case "keyboard.shortcut": return "press " + (p.keys || []).map(keyLabel).join(" + ");
+    case "keyboard.text": return "type “" + p.text + "”";
+    case "open_url": return "open " + p.url;
+    case "launch_application": return "open " + (typeof p.target === "string" ? p.target : "a program");
+    case "open_folder": return "open the folder " + p.path;
+    case "mouse.click": return (p.count > 1 ? p.count + " clicks" : "click") + ", " + (p.button || "left");
+    case "mouse.scroll": return "scroll " + (p.dy > 0 ? "down" : p.dy < 0 ? "up" : p.dx > 0 ? "right" : "left");
+    case "deck.notify": return "show “" + p.message + "”";
+    case "sound.play": return "play " + (p.file || "a sound");
+    default: return w.t.toLowerCase();
+  }
 }
 
 // The full registry, for anyone who wants an action the friendly list omits.
@@ -1422,7 +1632,7 @@ function openAdvancedPicker(row, col) {
     if (row != null) await addSquare(row, col, sel.value, params);
     else await setActionOnSelected(sel.value, params);
   };
-  document.getElementById("ask-back").onclick = backToChoices;
+  extra.querySelector("#ask-back").onclick = backToChoices;
 }
 
 // ── add, edit, save ───────────────────────────────────────────────────────
@@ -2000,8 +2210,8 @@ function renderGauges() {
 document.addEventListener("keydown", ev => {
   // While the shortcut recorder is listening it gets every key, including
   // Escape and Ctrl+S, which are otherwise the page's own shortcuts.
-  const rec = document.getElementById("ask-rec");
-  if (rec && document.activeElement === rec) return;
+  const active = document.activeElement;
+  if (active && active.classList && active.classList.contains("rec")) return;
   if (ev.key === "Escape") { closeIconPicker(); closeWhat(); closeEdit(); }
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") { ev.preventDefault(); save(); }
 });

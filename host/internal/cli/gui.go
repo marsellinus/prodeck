@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mobiledeck/mobiledeck/host/internal/app"
 	"github.com/mobiledeck/mobiledeck/host/internal/gui"
+	"github.com/mobiledeck/mobiledeck/host/internal/server"
 	"github.com/mobiledeck/mobiledeck/host/internal/store"
+	"github.com/mobiledeck/mobiledeck/host/internal/tray"
 )
 
 // cmdGUI runs the host and opens the desktop control panel.
@@ -20,6 +23,8 @@ import (
 // the window stops the host rather than leaving an invisible one behind.
 func cmdGUI(env Env, args []string) int {
 	fs, g := newFlagSet(env, "gui", "Run the host and open the desktop control panel.")
+	noTray := fs.Bool("no-tray", false,
+		"close the window and stop the host, instead of leaving it running in the notification area")
 	if code, ok := parseFlags(fs, args); !ok {
 		return code
 	}
@@ -89,10 +94,21 @@ func cmdGUI(env Env, args []string) int {
 
 	h.Log.Logger.Info("control panel opening", "addr", h.Server.Addr(), "config_dir", paths.Root)
 
+	// The tray is on by default where it exists. Closing a window and losing the
+	// deck the phone is using is the surprising behaviour, not the other way
+	// round; --no-tray is for a machine where the panel is the only reason the
+	// host is running.
+	useTray := !*noTray && tray.Available()
+	if !*noTray && !tray.Available() && !g.quiet {
+		fmt.Fprintln(env.Stderr, "note: this build has no notification area, so closing the window stops the host")
+	}
+
 	if err := gui.Run(gui.Options{
-		Addr:  h.Server.Addr(),
-		Token: h.Auth.AdminToken(),
-		Title: fmt.Sprintf("MobileDeck - %s", cfg.HostName),
+		Addr:    h.Server.Addr(),
+		Token:   h.Auth.AdminToken(),
+		Title:   fmt.Sprintf("MobileDeck - %s", cfg.HostName),
+		Tray:    useTray,
+		Address: reachableAddress(h.Server),
 	}); err != nil {
 		fmt.Fprintf(env.Stderr, "mobiledeck: %v\n", err)
 		return ExitError
@@ -123,6 +139,18 @@ func cmdGUI(env Env, args []string) int {
 		fmt.Fprintf(env.Stdout, "control panel closed; the host on %s has stopped\n", h.Server.Addr())
 	}
 	return ExitOK
+}
+
+// reachableAddress is the address the tray menu shows: the one a phone on the
+// same network would type, not the loopback address the panel itself uses.
+func reachableAddress(srv *server.Server) string {
+	if addrs := srv.LocalAddresses(); len(addrs) > 0 {
+		return strings.TrimPrefix(addrs[0], "http://")
+	}
+	// No LAN address means the host is loopback-only, which is what `--bind
+	// 127.0.0.1` asks for. Showing the loopback address is still more useful
+	// than showing nothing, and it is what a browser on this machine would use.
+	return srv.Addr()
 }
 
 // writeRuntimeState publishes the same file `mobiledeck run` writes, so the

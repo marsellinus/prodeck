@@ -22,6 +22,8 @@ import (
 	"time"
 
 	webview "github.com/webview/webview_go"
+
+	"github.com/mobiledeck/mobiledeck/host/internal/tray"
 )
 
 // Options configures the window.
@@ -34,6 +36,17 @@ type Options struct {
 	Title string
 	// Debug enables the web view's developer tools.
 	Debug bool
+
+	// Tray keeps the host running when the window is closed, and puts an icon
+	// in the notification area to bring the window back.
+	//
+	// Without it, closing the window stops the host, which is the older and
+	// still correct behaviour for a machine where the panel is the only reason
+	// the host is running. With it, the window is just a window.
+	Tray bool
+	// Address is what the tray menu shows as where the deck is reachable. It is
+	// the LAN address, not the loopback one, because the phone is what connects.
+	Address string
 }
 
 // Run opens the window and blocks until it is closed.
@@ -62,8 +75,44 @@ func Run(opts Options) error {
 		return fmt.Errorf("gui: binding the admin bridge: %w", err)
 	}
 
+	if opts.Tray {
+		// The tray and the window are two message loops on two threads. The
+		// window's loop is the one Run blocks on; the tray's runs here, and its
+		// callbacks hop back to the window's thread through Dispatch, which is
+		// the web view's own thread-safe way in.
+		go tray.Start(tray.Options{
+			Title:   opts.Title,
+			Address: opts.Address,
+		}, tray.Callbacks{
+			Show: func() {
+				w.Dispatch(func() { showWindow(w.Window()) })
+			},
+			Quit: func() {
+				// Quitting ends the process, so the window is destroyed rather
+				// than hidden; Run then returns and the caller stops the host.
+				w.Dispatch(func() { w.Terminate() })
+			},
+		})
+		<-tray.Ready()
+
+		// Closing the window hides it. This has to happen after the window
+		// exists, which is why it is here and not next to New.
+		if err := hideOnClose(w.Window(), func() { hideWindow(w.Window()) }); err != nil {
+			// Not fatal: the panel still works, closing it just stops the host,
+			// and the tray icon is still there to quit with.
+			fmt.Fprintf(os.Stderr, "mobiledeck: the window could not be set to hide on close: %v\n", err)
+		}
+	}
+
 	w.SetHtml(panelPage)
 	w.Run()
+
+	// The window is gone. If it went because the user asked to quit, the icon
+	// must go too; if it went another way, Stop is still what ends the tray
+	// loop so this process can exit.
+	if opts.Tray {
+		tray.Stop()
+	}
 	return nil
 }
 

@@ -15,6 +15,7 @@ require (
 
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/energye/systray v1.0.3 // indirect
 	github.com/miekg/dns v1.1.27 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect

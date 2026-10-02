@@ -16,5 +16,7 @@ the rejected alternatives). Superseded records are kept, marked, and never rewri
 | [0009](0009-single-binary-no-docker-dependency.md) | Single static binary, Docker never required | accepted |
 | [0010](0010-license-apache-2.0.md) | License: Apache-2.0 | accepted |
 | [0011](0011-desktop-gui.md) | Desktop control panel: native window with a web view | accepted |
+| [0012](0012-soundboard-and-sound-action.md) | Soundboard: host-side playback, `sound.play` | accepted |
+| [0013](0013-tray-and-browser-panel.md) | Tray keeps the host running; the panel is also a web page | accepted |
 
 Adding an ADR: copy an existing file, increment the number, append to the table above.
