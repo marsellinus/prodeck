@@ -532,9 +532,23 @@ directory after symlinks are followed. The admin sound API stores `.wav`, `.mp3`
 
 What the host can actually play is narrower than what it stores, and the
 difference is stated rather than discovered at press time. Windows plays through
-`PlaySoundW`, which decodes WAV and nothing else, so any other format is refused
-by name in the result. `PlaySoundW` also has no volume parameter, so a requested
-`volume` is not applied there and the result says so.
+MCI (`mciSendStringW`), which decodes WAV, MP3, WMA and MIDI through the codecs
+the OS already ships; a file in ogg, flac, m4a, aac or opus is refused by name in
+the result, with the format in the message. Linux and macOS use a CLI player that
+is already installed, and each has its own smaller gap (macOS has no ogg or opus
+decoder, `aplay` decodes WAV only).
+
+A `volume` of `0..100` is applied on Windows through MCI's per-device level, so
+the level really is set; it is stored in eight bits, so a request for `70` reads
+back as `707` of MCI's `1000`. A platform with no level control at all reports
+that the level was not applied rather than claiming one that never was. Each
+press opens its own playback device, so pressing a second pad does not cut the
+first sound off.
+
+A `blocking` play runs for the length of the file, which outlives the server's
+1500 ms synchronous window: the reply is then an `accepted` acknowledgement and
+the outcome arrives as `event.action.finished` with the same `execution_id`.
+This is the normal two-phase behaviour for any slow action.
 
 A file a profile still references cannot be deleted through the admin API: the
 reference check walks every button action, including the steps of a macro.

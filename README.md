@@ -36,7 +36,7 @@ renders the grid, and presses buttons.
 | Telemetry (CPU, RAM, disk, network) | working |
 | mDNS discovery, TLS with fingerprint pinning | working |
 | Desktop GUI with a layout editor | working, see [`docs/GUI.md`](docs/GUI.md) |
-| Soundboard (press a tile, a sound plays on the host) | working; Windows plays WAV only, and says so |
+| Soundboard (press a tile, a sound plays on the host) | working; Windows plays wav, mp3, wma and midi, and names the formats it cannot |
 | Plugins, OBS, USB transport | Phase 3–5, see [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 
 Verified on Windows 11: real `SendInput` keystrokes delivered to a real

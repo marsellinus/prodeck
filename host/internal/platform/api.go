@@ -230,8 +230,9 @@ type Sound interface {
 	//
 	// volume is 0..100, where 0 is silent and 100 is the file as recorded. A
 	// platform that cannot set a level must report that in its result rather
-	// than pretend: see the Windows adapter, where PlaySound has no volume
-	// control at all.
+	// than pretend, and one that can must not disclaim it: the answer comes
+	// from VolumeIgnored(), which is why that is a per-adapter question and not
+	// a per-file one.
 	//
 	// The name is not Play because Media already has one, and an embedded
 	// no-op type cannot define two methods with the same name.
