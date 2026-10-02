@@ -82,6 +82,11 @@ with a fake transport would have caught:
 
 ## Quick start
 
+**Installing rather than hacking?** [`docs/INSTALL.md`](docs/INSTALL.md) is the
+install page: the scripts (`sh scripts/install.sh`, `.\scripts\install.ps1`,
+`sh scripts/install-android.sh`), the published one-liners, uninstall steps, and
+Docker and Android notes. The manual commands below do the same thing by hand.
+
 ### 1. Build and run the host
 
 With the desktop control panel:
@@ -323,6 +328,7 @@ which operating system it runs on.** Porting to a new OS means adding files unde
 | [`docs/GUI.md`](docs/GUI.md) | The desktop control panel and the layout editor |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Building and running from source |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Installing and running: native, systemd user unit, Windows logon, optional Docker |
+| [`docs/INSTALL.md`](docs/INSTALL.md) | The install scripts, the published one-liners, uninstall steps |
 | [`docs/MULTI_DEVICE.md`](docs/MULTI_DEVICE.md) | Several phones at once: per-device scopes, revoke vs disable, worked example |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | The five phases and what each one owes |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | The rules enforced at review |

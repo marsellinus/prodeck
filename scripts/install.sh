@@ -166,7 +166,24 @@ else
     bindir="$HOME/.local/bin"
 fi
 
+# A relative --prefix is resolved against the current directory: the systemd
+# unit needs an absolute ExecStart, and so does the PATH hint below.
+is_absolute() {
+    case "$1" in
+        /*) return 0 ;;          # POSIX absolute
+        [A-Za-z]:[\\/]*) return 0 ;;  # Windows drive path (Git Bash, Cygwin)
+    esac
+    return 1
+}
+
+if ! is_absolute "$bindir"; then
+    bindir="$PWD/${bindir#./}"
+fi
+
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/mobiledeck"
+if ! is_absolute "$config_dir"; then
+    config_dir="$PWD/${config_dir#./}"
+fi
 
 # A checkout is detected from this script's own location. When the script is
 # piped into a shell there is no location, and release mode is used.
@@ -192,6 +209,10 @@ fi
 
 if [ "$with_gui" -eq 1 ] && [ "$mode" = "release" ]; then
     die "--with-gui needs a source build: the published tarball is built with CGO disabled and contains no window. Use --from-source."
+fi
+
+if [ "$mode" = "release" ] && [ "$goos" = "windows" ]; then
+    die "release archives for Windows are .zip and are installed by scripts/install.ps1. Use that, or --from-source here."
 fi
 
 if [ "$mode" = "source" ] && [ -z "$source_dir" ]; then
@@ -389,10 +410,12 @@ else
         need_tmp
         if [ -n "$version" ]; then
             note "install: cloning $CLONE_URL at $version"
-            git clone --depth 1 --branch "$version" "$CLONE_URL" "$tmp/src"
+            git clone --depth 1 --branch "$version" "$CLONE_URL" "$tmp/src" ||
+                die "could not clone $CLONE_URL. A from-source install needs a checkout: run this script from inside the repository, or pass --source DIR. If the repository is published, check the tag and your network."
         else
             note "install: cloning $CLONE_URL"
-            git clone --depth 1 "$CLONE_URL" "$tmp/src"
+            git clone --depth 1 "$CLONE_URL" "$tmp/src" ||
+                die "could not clone $CLONE_URL. A from-source install needs a checkout: run this script from inside the repository, or pass --source DIR. If the repository is published, check your network."
         fi
         source_dir="$tmp/src"
     fi

@@ -5,45 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MobileDeck</title>
 <style>
-/* ── design tokens ──────────────────────────────────────────────────────────
-   Material-ish roles, so every colour has one name and a light theme is a
-   matter of redefining the block rather than hunting for hex codes. */
+/* ── tokens ─────────────────────────────────────────────────────────────────
+   One name per colour. The light theme redefines this block and nothing else. */
 :root {
-  --bg:        #0b0b0f;
-  --surface:   #131318;
-  --surface-2: #1a1a21;
-  --surface-3: #22222b;
-  --line:      #2c2c36;
-  --line-soft: #23232c;
-  --fg:        #f4f4f7;
-  --fg-dim:    #a0a0b0;
-  --fg-faint:  #6c6c7c;
-  --primary:   #5b8def;
-  --primary-d: #3f6fd8;
-  --on-primary:#ffffff;
-  --ok:        #34d399;
-  --warn:      #fbbf24;
-  --err:       #f87171;
-  --radius:    14px;
-  --radius-sm: 9px;
-  --shadow:    0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35);
-  --ease:      cubic-bezier(.2,.8,.2,1);
+  --bg: #0b0b0f; --surface: #131318; --surface-2: #1a1a21; --surface-3: #22222b;
+  --line: #2c2c36; --line-soft: #23232c;
+  --fg: #f4f4f7; --fg-dim: #a0a0b0; --fg-faint: #6c6c7c;
+  --accent: #5b8def; --accent-d: #3f6fd8; --on-accent: #fff;
+  --ok: #34d399; --warn: #fbbf24; --err: #f87171;
+  --r: 14px; --r-sm: 9px;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35);
+  --ease: cubic-bezier(.2,.8,.2,1);
 }
 :root[data-theme="light"] {
-  --bg:        #f6f6f9;
-  --surface:   #ffffff;
-  --surface-2: #f1f1f6;
-  --surface-3: #e6e6ee;
-  --line:      #d9d9e3;
-  --line-soft: #e8e8ef;
-  --fg:        #17171d;
-  --fg-dim:    #5a5a68;
-  --fg-faint:  #8b8b99;
-  --primary:   #2f6bdc;
-  --primary-d: #2455b3;
-  --shadow:    0 1px 2px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.08);
+  --bg: #f6f6f9; --surface: #fff; --surface-2: #f1f1f6; --surface-3: #e6e6ee;
+  --line: #d9d9e3; --line-soft: #e8e8ef;
+  --fg: #17171d; --fg-dim: #5a5a68; --fg-faint: #8b8b99;
+  --accent: #2f6bdc; --accent-d: #2455b3;
+  --shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.08);
 }
-
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -51,215 +31,203 @@ body {
   font: 14px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-::selection { background: var(--primary); color: var(--on-primary); }
+::selection { background: var(--accent); color: var(--on-accent); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
 
-/* ── shell ──────────────────────────────────────────────────────────────── */
 .shell { display: grid; grid-template-rows: auto 1fr; height: 100%; }
-
 header {
-  display: flex; align-items: center; gap: 14px; padding: 0 18px;
-  height: 58px; background: var(--surface); border-bottom: 1px solid var(--line);
-  position: relative; z-index: 20;
+  display: flex; align-items: center; gap: 14px; padding: 0 18px; height: 58px;
+  background: var(--surface); border-bottom: 1px solid var(--line); z-index: 20;
 }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: .2px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; }
 .brand svg { width: 22px; height: 22px; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 22%, transparent); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--err);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 22%, transparent); }
 .dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
-.host-chip {
-  display: flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
-  background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; color: var(--fg-dim);
-}
+.chip { display: flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; color: var(--fg-dim); }
 .grow { flex: 1; }
 
 nav { display: flex; gap: 3px; background: var(--surface-2); padding: 3px; border-radius: 11px; }
 nav button {
-  display: flex; align-items: center; gap: 7px;
-  background: transparent; color: var(--fg-dim); border: 0; padding: 7px 14px;
-  border-radius: 8px; cursor: pointer; font: inherit; font-weight: 550;
+  display: flex; align-items: center; gap: 7px; background: transparent; color: var(--fg-dim);
+  border: 0; padding: 8px 15px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 550;
   transition: background .15s var(--ease), color .15s var(--ease);
 }
 nav button:hover { color: var(--fg); }
-nav button.active { background: var(--primary); color: var(--on-primary); box-shadow: var(--shadow); }
+nav button.active { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow); }
 nav button svg { width: 15px; height: 15px; }
 
 main { overflow: auto; padding: 22px; }
-section { display: none; max-width: 1240px; margin: 0 auto; }
+section { display: none; max-width: 1180px; margin: 0 auto; }
 section.active { display: block; animation: fade .22s var(--ease); }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-/* ── cards ──────────────────────────────────────────────────────────────── */
-.card {
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius); padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow);
-}
-.card > h2 {
-  font-size: 12px; margin: 0 0 14px; text-transform: uppercase;
-  letter-spacing: .8px; color: var(--fg-dim); font-weight: 650;
-  display: flex; align-items: center; gap: 8px;
-}
-.card > h2 .grow { flex: 1; }
+.lede { font-size: 15px; color: var(--fg-dim); margin: 0 0 18px; max-width: 74ch; }
+.lede strong { color: var(--fg); font-weight: 600; }
 
-/* ── controls ───────────────────────────────────────────────────────────── */
-button.btn {
-  display: inline-flex; align-items: center; gap: 7px; justify-content: center;
-  background: var(--primary); color: var(--on-primary); border: 0; border-radius: var(--radius-sm);
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.card > h2 { font-size: 13px; margin: 0 0 4px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.card > h2 + .sub { color: var(--fg-dim); font-size: 12.5px; margin: 0 0 14px; }
+
+button.btn { display: inline-flex; align-items: center; gap: 7px; justify-content: center;
+  background: var(--accent); color: var(--on-accent); border: 0; border-radius: var(--r-sm);
   padding: 9px 15px; cursor: pointer; font: inherit; font-weight: 570;
-  transition: background .14s var(--ease), transform .06s var(--ease);
-}
-button.btn:hover:not(:disabled) { background: var(--primary-d); }
+  transition: background .14s var(--ease), transform .06s var(--ease); }
+button.btn:hover:not(:disabled) { background: var(--accent-d); }
 button.btn:active:not(:disabled) { transform: translateY(1px); }
 button.btn.ghost { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
 button.btn.ghost:hover:not(:disabled) { background: var(--surface-3); }
-button.btn.danger { background: transparent; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 45%, var(--line)); }
+button.btn.danger { background: transparent; color: var(--err);
+  border: 1px solid color-mix(in srgb, var(--err) 45%, var(--line)); }
 button.btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 14%, transparent); }
+button.btn.big { padding: 13px 22px; font-size: 15px; border-radius: 11px; }
 button.btn.sm { padding: 6px 10px; font-size: 12.5px; }
 button.btn.icon { padding: 8px; }
 button.btn:disabled { opacity: .42; cursor: not-allowed; }
 button.btn svg { width: 15px; height: 15px; }
 
-input, select, textarea {
-  background: var(--bg); color: var(--fg); border: 1px solid var(--line);
-  border-radius: var(--radius-sm); padding: 9px 11px; font: inherit; width: 100%;
-  transition: border-color .14s var(--ease), box-shadow .14s var(--ease);
-}
-input:focus, select:focus, textarea:focus {
-  outline: none; border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
-}
+input, select, textarea { background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+  border-radius: var(--r-sm); padding: 9px 11px; font: inherit; width: 100%;
+  transition: border-color .14s var(--ease), box-shadow .14s var(--ease); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 input.bad, textarea.bad { border-color: var(--err); }
 textarea { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; min-height: 92px; resize: vertical; }
-label.field { display: block; margin-bottom: 10px; }
-label.field > span { display: block; color: var(--fg-dim); font-size: 12px; margin-bottom: 4px; font-weight: 550; }
+label.field { display: block; margin-bottom: 12px; }
+label.field > span { display: block; color: var(--fg-dim); font-size: 12.5px; margin-bottom: 4px; font-weight: 550; }
 .hint { color: var(--fg-faint); font-size: 12px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row.tight { gap: 6px; }
 .cols { display: grid; gap: 10px; }
-
-.pill {
-  padding: 3px 9px; border-radius: 999px; background: var(--surface-3);
-  border: 1px solid var(--line); font-size: 11.5px; color: var(--fg-dim); font-weight: 550;
-}
-.pill.ok   { color: var(--ok);   border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+.pill { padding: 3px 9px; border-radius: 999px; background: var(--surface-3);
+  border: 1px solid var(--line); font-size: 11.5px; color: var(--fg-dim); font-weight: 550; }
+.pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
 .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
-.pill.err  { color: var(--err);  border-color: color-mix(in srgb, var(--err) 40%, var(--line)); }
+.pill.err { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, var(--line)); }
 .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
 
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
 th { color: var(--fg-dim); font-weight: 570; font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px; }
 tr:last-child td { border-bottom: 0; }
-tbody tr { transition: background .12s var(--ease); }
 tbody tr:hover { background: var(--surface-2); }
 
-/* ── status ─────────────────────────────────────────────────────────────── */
-.kv { display: grid; grid-template-columns: 190px 1fr; gap: 8px 16px; align-items: baseline; }
+.kv { display: grid; grid-template-columns: 200px 1fr; gap: 8px 16px; align-items: baseline; margin: 0; }
 .kv dt { color: var(--fg-dim); font-size: 13px; }
 .kv dd { margin: 0; }
-.gauges { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-.gauge { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; }
-.gauge .name { color: var(--fg-dim); font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px; }
+.gauges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.gauge { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px; }
+.gauge .name { color: var(--fg-dim); font-size: 11.5px; }
 .gauge .val { font-size: 24px; font-weight: 650; margin: 3px 0 7px; font-variant-numeric: tabular-nums; }
 .bar { height: 5px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
-.bar > i { display: block; height: 100%; background: var(--primary); border-radius: 3px; transition: width .4s var(--ease); }
-.bar.warn > i { background: var(--warn); }
-.bar.err > i { background: var(--err); }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s var(--ease); }
+.bar.warn > i { background: var(--warn); } .bar.err > i { background: var(--err); }
 
-/* ── layout editor ──────────────────────────────────────────────────────── */
-.editor { display: grid; grid-template-columns: 250px 1fr; gap: 16px; align-items: start; }
-@media (max-width: 1000px) { .editor { grid-template-columns: 1fr; } }
+/* ── the board ──────────────────────────────────────────────────────────── */
+.board-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.board-head .name { font-size: 20px; font-weight: 650; }
+.grid { display: grid; gap: 11px; }
 
-.palette { position: sticky; top: 0; }
-.palette-list { display: flex; flex-direction: column; gap: 5px; max-height: 420px; overflow: auto; margin-top: 8px; }
-.palette-item {
-  display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--radius-sm);
-  background: var(--surface-2); border: 1px solid var(--line-soft); cursor: grab;
-  font-size: 12.5px; transition: border-color .12s var(--ease), transform .06s var(--ease);
-}
-.palette-item:hover { border-color: var(--primary); }
-.palette-item:active { cursor: grabbing; transform: scale(.98); }
-.palette-item .type { color: var(--fg-faint); font-size: 11px; }
-.palette-item .scope { margin-left: auto; font-size: 10.5px; color: var(--fg-faint); }
-.palette-item.risk { border-color: color-mix(in srgb, var(--warn) 35%, var(--line-soft)); }
-
-.canvas { min-width: 0; }
-.grid { display: grid; gap: 10px; }
-.tile {
+.pad {
   position: relative; aspect-ratio: 1; background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: var(--radius);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px; cursor: pointer; padding: 8px; text-align: center; overflow: hidden;
-  transition: border-color .14s var(--ease), transform .08s var(--ease), box-shadow .14s var(--ease);
+  border: 1px solid var(--line); border-radius: var(--r); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px; text-align: center; overflow: hidden; user-select: none;
+  transition: border-color .14s var(--ease), transform .07s var(--ease), box-shadow .14s var(--ease);
 }
-.tile:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow); }
-.tile.selected { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 40%, transparent); }
-.tile.empty { border-style: dashed; border-color: var(--line); color: var(--fg-faint); }
-.tile.empty:hover { border-style: solid; color: var(--primary); }
-.tile.draggable { cursor: grab; }
-.tile.dragging { opacity: .35; }
-.tile.drop-target { border-color: var(--ok); border-style: solid; box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 40%, transparent); }
-.tile.drop-swap { border-color: var(--warn); border-style: solid; box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 40%, transparent); }
-.tile .ico { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
-.tile .ico img { width: 30px; height: 30px; object-fit: contain; }
-.tile .lbl { font-size: 11.5px; font-weight: 570; word-break: break-word; max-width: 100%; }
-.tile .act { font-size: 10px; color: var(--fg-faint); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tile .handle { position: absolute; top: 4px; right: 6px; color: var(--fg-faint); font-size: 11px; opacity: 0; transition: opacity .12s; }
-.tile:hover .handle { opacity: 1; }
-.tile .badge { position: absolute; top: 5px; left: 6px; font-size: 9.5px; padding: 1px 5px; border-radius: 999px; background: var(--surface-3); color: var(--fg-faint); }
-.tile .badge.tel { background: color-mix(in srgb, var(--ok) 22%, var(--surface-3)); color: var(--ok); }
-.tile .badge.tog { background: color-mix(in srgb, var(--primary) 22%, var(--surface-3)); color: var(--primary); }
+.pad:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
+.pad:active, .pad.lit { transform: scale(.97); border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+.pad.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+/* A soundboard pad is a different object from a deck button, and it should look
+   like one: a filled, colourful key rather than a bordered tile. */
+.pad.sound { background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 26%, var(--surface-2)), var(--surface-2)); }
+.pad.sound:hover { background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 36%, var(--surface-2)), var(--surface-2)); }
+.pad.empty { border-style: dashed; color: var(--fg-faint); background: transparent; }
+.pad.empty:hover { border-style: solid; color: var(--accent); }
+.pad.dragging { opacity: .35; }
+.pad.drop-target { border-color: var(--ok); border-style: solid;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 40%, transparent); }
+.pad.drop-swap { border-color: var(--warn); border-style: solid;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 40%, transparent); }
+.pad .ico { font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.pad .ico img { width: 34px; height: 34px; object-fit: contain; }
+.pad .lbl { font-size: 13px; font-weight: 600; word-break: break-word; max-width: 100%; }
+.pad .sub { font-size: 10.5px; color: var(--fg-faint); max-width: 100%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.pad .handle { position: absolute; top: 5px; right: 7px; color: var(--fg-faint); font-size: 11px;
+  opacity: 0; transition: opacity .12s; }
+.pad:hover .handle { opacity: 1; }
+.pad .badge { position: absolute; top: 6px; left: 7px; font-size: 9.5px; padding: 1px 6px;
+  border-radius: 999px; background: var(--surface-3); color: var(--fg-faint); }
+.pad .wave { position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 2px; align-items: flex-end; height: 12px; opacity: .5; }
+.pad .wave i { width: 2px; border-radius: 2px; background: currentColor; }
 
-.empty-state {
-  text-align: center; padding: 44px 20px; color: var(--fg-dim);
-  border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface-2);
-}
-.empty-state h3 { margin: 10px 0 4px; font-size: 15px; color: var(--fg); }
-.empty-state svg { width: 34px; height: 34px; opacity: .5; }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--fg-dim);
+  border: 1px dashed var(--line); border-radius: var(--r); background: var(--surface-2); }
+.empty-state h3 { margin: 10px 0 4px; font-size: 16px; color: var(--fg); }
+.empty-state svg { width: 36px; height: 36px; opacity: .45; }
+
+/* ── setup steps ────────────────────────────────────────────────────────── */
+.steps { display: grid; gap: 14px; counter-reset: step; }
+.step { display: grid; grid-template-columns: 40px 1fr; gap: 14px; align-items: start;
+  padding: 16px; background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--r); }
+.step .n { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; }
+.step h3 { margin: 2px 0 4px; font-size: 15px; }
+.step p { margin: 0 0 10px; color: var(--fg-dim); font-size: 13.5px; }
+.pin { font-size: 40px; letter-spacing: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ── modal ──────────────────────────────────────────────────────────────── */
-.scrim {
-  position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px);
-  display: none; align-items: center; justify-content: center; z-index: 100; padding: 24px;
-}
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.62); backdrop-filter: blur(3px);
+  display: none; align-items: center; justify-content: center; z-index: 100; padding: 24px; }
 .scrim.open { display: flex; animation: fade .16s var(--ease); }
-.modal {
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-  box-shadow: var(--shadow); width: min(760px, 100%); max-height: 86vh;
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.modal header { background: transparent; border-bottom: 1px solid var(--line); height: auto; padding: 15px 18px; }
-.modal .body { padding: 16px 18px; overflow: auto; }
-.modal footer { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 9px; justify-content: flex-end; }
+.modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); width: min(780px, 100%); max-height: 88vh; display: flex; flex-direction: column; }
+.modal .head { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
+.modal .head strong { font-size: 15px; }
+.modal .body { padding: 18px 20px; overflow: auto; }
+.modal .foot { padding: 13px 20px; border-top: 1px solid var(--line); display: flex; gap: 9px; justify-content: flex-end; }
 
-.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; margin-top: 12px; }
-.icon-cell {
-  background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
-  padding: 10px 6px; cursor: pointer; text-align: center;
-  transition: border-color .12s var(--ease), transform .08s var(--ease);
-}
-.icon-cell:hover { border-color: var(--primary); transform: translateY(-2px); }
+.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.choice { display: block; padding: 15px; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r); cursor: pointer; text-align: left; font: inherit; color: var(--fg);
+  transition: border-color .14s var(--ease), transform .08s var(--ease); }
+.choice:hover { border-color: var(--accent); transform: translateY(-2px); }
+.choice .t { font-weight: 620; font-size: 14.5px; display: flex; align-items: center; gap: 9px; margin-bottom: 5px; }
+.choice .d { color: var(--fg-dim); font-size: 12.5px; line-height: 1.45; }
+.choice svg { width: 18px; height: 18px; flex: none; }
+
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 10px; margin-top: 12px; }
+.icon-cell { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--r-sm);
+  padding: 10px 6px; cursor: pointer; text-align: center; transition: border-color .12s, transform .08s; }
+.icon-cell:hover { border-color: var(--accent); transform: translateY(-2px); }
 .icon-cell img { width: 30px; height: 30px; object-fit: contain; display: block; margin: 0 auto 6px; }
 .icon-cell .n { font-size: 10.5px; color: var(--fg-dim); word-break: break-all; }
-.icon-cell.skeleton { height: 76px; background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
+.icon-cell.skeleton { height: 78px; background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
+  background-size: 200% 100%; animation: shimmer 1.3s infinite; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
-/* ── feedback ───────────────────────────────────────────────────────────── */
-.toast {
-  position: fixed; right: 20px; bottom: 20px; z-index: 200;
-  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--primary);
-  border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 12px 16px;
-  max-width: 480px; white-space: pre-wrap; font-size: 13px;
-  display: none; animation: slide .2s var(--ease);
-}
-@keyframes slide { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
-.toast.show { display: block; }
-.toast.ok  { border-left-color: var(--ok); }
-.toast.err { border-left-color: var(--err); }
-.toast.warn{ border-left-color: var(--warn); }
+.sound-row { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: var(--r-sm);
+  background: var(--surface-2); border: 1px solid var(--line-soft); cursor: pointer; }
+.sound-row:hover { border-color: var(--accent); }
+.sound-row .nm { flex: 1; font-weight: 550; }
+.sound-row.playing { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--surface-2)); }
 
-.spin { width: 15px; height: 15px; border: 2px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; }
+.toast { position: fixed; right: 20px; bottom: 20px; z-index: 200; background: var(--surface);
+  border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r-sm);
+  box-shadow: var(--shadow); padding: 13px 17px; max-width: 500px; white-space: pre-wrap; font-size: 13.5px;
+  display: none; }
+.toast.show { display: block; animation: slide .2s var(--ease); }
+@keyframes slide { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+.toast.ok { border-left-color: var(--ok); } .toast.err { border-left-color: var(--err); }
+.toast.warn { border-left-color: var(--warn); }
+.spin { width: 15px; height: 15px; border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
@@ -272,310 +240,312 @@ tbody tr:hover { background: var(--surface-2); }
       </svg>
       MobileDeck
     </span>
-    <span class="dot" id="dot" title="host connection"></span>
-    <span class="host-chip"><span id="hostname">…</span><span id="addr" class="mono"></span></span>
+    <span class="dot" id="dot" title="Is the computer reachable?"></span>
+    <span class="chip"><span id="hostname">…</span></span>
     <span class="grow"></span>
     <nav>
-      <button data-tab="status" class="active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>Status</button>
-      <button data-tab="layout">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Layout</button>
-      <button data-tab="devices">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Devices</button>
-      <button data-tab="pair">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><rect x="4" y="6" width="16" height="14" rx="2"/></svg>Pair</button>
+      <button data-tab="board" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Board</button>
+      <button data-tab="setup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Connect a phone</button>
+      <button data-tab="sounds">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="19" cy="16" r="3"/></svg>Sounds</button>
+      <button data-tab="phones">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>Phones</button>
     </nav>
-    <button class="btn icon ghost" id="theme-btn" title="Toggle light and dark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6L4.5 4.5M19.5 19.5L18 18M18 6l1.5-1.5M4.5 19.5L6 18"/><circle cx="12" cy="12" r="4"/></svg>
+    <button class="btn icon ghost" id="theme-btn" title="Light or dark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6L4.5 4.5M19.5 19.5L18 18M18 6l1.5-1.5M4.5 19.5L6 18"/></svg>
     </button>
   </header>
 
   <main>
-    <!-- ── Status ──────────────────────────────────────────────────────── -->
-    <section id="tab-status" class="active">
+    <!-- ── Board ───────────────────────────────────────────────────────── -->
+    <section id="tab-board" class="active">
+      <p class="lede">
+        This is what your phone will show. Press a square to change it, drag one to
+        move it, or drop a sound on it to make it a soundboard pad.
+      </p>
+
       <div class="card">
-        <h2>Host <span class="grow"></span>
-          <button class="btn sm ghost" onclick="refreshStatus()">Refresh</button>
-          <button class="btn sm ghost" onclick="reloadProfiles()">Reload profiles</button>
-        </h2>
-        <dl class="kv" id="status-kv"></dl>
-      </div>
-      <div class="card">
-        <h2>Live</h2>
-        <div class="gauges" id="gauges"><div class="hint">Subscribe a phone to see telemetry here.</div></div>
-      </div>
-      <div class="card">
-        <h2>What this machine can do</h2>
-        <dl class="kv" id="caps-kv"></dl>
-        <p class="hint" style="margin:12px 0 0">
-          The agent never elevates. Scripts and power actions are refused unless the
-          device holds those scopes, and shutdown and restart also need
-          <code>"confirm": true</code> in the action parameters.
-        </p>
+        <h2>Your board</h2>
+        <p class="sub" id="board-hint">Changes are saved automatically and appear on the phone within a second.</p>
+        <div class="board-head">
+          <select id="board-select" style="max-width:300px" onchange="switchBoard(this.value)"></select>
+          <button class="btn ghost sm" onclick="newBoard()">Start a new board</button>
+          <span class="grow"></span>
+          <span class="pill" id="save-pill">Saved</span>
+        </div>
+        <div class="row tight" id="screen-tabs" style="margin-bottom:14px"></div>
+        <div class="row" style="margin-bottom:16px">
+          <input id="new-screen" placeholder="Name of a new screen" style="max-width:240px">
+          <button class="btn ghost sm" onclick="addScreen()">Add screen</button>
+          <span class="grow"></span>
+          <button class="btn ghost sm" onclick="deleteScreen()">Delete this screen</button>
+        </div>
+        <div class="grid" id="board-grid"></div>
       </div>
     </section>
 
-    <!-- ── Layout ──────────────────────────────────────────────────────── -->
-    <section id="tab-layout">
-      <div class="card">
-        <h2>Profile <span class="grow"></span>
-          <button class="btn sm ghost" onclick="newProfile()">New</button>
-          <button class="btn sm ghost" onclick="exportProfile()">Export</button>
-          <button class="btn sm ghost" onclick="importProfile()">Import</button>
-          <button class="btn sm" id="save-btn" onclick="saveProfile()">Save</button>
-        </h2>
-        <div class="row">
-          <select id="profile-select" style="max-width:320px" onchange="selectProfile(this.value)"></select>
-          <span class="pill" id="revision-pill"></span>
-          <span class="grow"></span>
-          <span class="hint" id="save-state">All changes are saved as you make them.</span>
-        </div>
-      </div>
+    <!-- ── Connect a phone ────────────────────────────────────────────── -->
+    <section id="tab-setup">
+      <p class="lede">
+        Three steps, once. After this the phone remembers the computer and
+        reconnects by itself.
+      </p>
 
-      <div class="card">
-        <h2>Pages</h2>
-        <div class="row tight" id="page-tabs"></div>
-        <div class="row" style="margin-top:12px">
-          <input id="new-page-name" placeholder="New page name" style="max-width:230px">
-          <button class="btn sm ghost" onclick="addPage()">Add page</button>
-          <button class="btn sm ghost" onclick="setRootPage()">Make root</button>
-          <button class="btn sm danger" onclick="deletePage()">Delete page</button>
-        </div>
-      </div>
-
-      <div class="editor">
-        <div class="card palette">
-          <h2>Add a button</h2>
-          <input id="palette-search" placeholder="Filter actions…" oninput="renderPalette()">
-          <div class="palette-list" id="palette-list"></div>
-          <p class="hint" style="margin:10px 0 0">Drag onto a cell, or click a cell in the grid.</p>
-        </div>
-
-        <div class="canvas">
-          <div class="card">
-            <h2>Grid <span class="grow"></span>
-              <label class="hint" style="display:flex;gap:6px;align-items:center;margin:0">
-                Columns <input id="grid-cols" type="number" min="1" max="16" style="width:64px" onchange="applyGrid()">
-              </label>
-              <label class="hint" style="display:flex;gap:6px;align-items:center;margin:0">
-                Rows <input id="grid-rows" type="number" min="1" max="16" style="width:64px" onchange="applyGrid()">
-              </label>
-            </h2>
-            <div class="grid" id="button-grid"></div>
-            <p class="hint" style="margin:12px 0 0">
-              Drag a tile to move it, or onto another tile to swap them.
-            </p>
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <div>
+            <h3>Open MobileDeck on the phone</h3>
+            <p>If it is not installed yet, the APK is in the project at
+              <code class="mono">android/app/build/outputs/apk/debug/app-debug.apk</code>.
+              With the phone plugged in: <code class="mono">adb install -r app-debug.apk</code>.</p>
           </div>
         </div>
-      </div>
 
-      <div class="card" id="inspector-card">
-        <h2>Button <span class="grow"></span><span class="pill mono" id="inspector-id"></span></h2>
-        <div id="editor-empty" class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
-          <h3>Nothing selected</h3>
-          <p>Pick a cell in the grid to edit it, or drag an action from the left.</p>
-        </div>
-        <div id="editor" style="display:none">
-          <div class="cols" style="grid-template-columns:1fr 1fr">
-            <label class="field"><span>Label</span><input id="b-label" oninput="markDirty()"></label>
-            <label class="field"><span>Icon</span>
-              <div class="row tight">
-                <input id="b-icon" placeholder="emoji, or a Material name" oninput="markDirty()">
-                <button class="btn ghost sm" onclick="openIconPicker()">Browse</button>
-                <button class="btn ghost sm" onclick="clearIcon()" title="Clear the icon">×</button>
-              </div>
-            </label>
-          </div>
-          <div class="row tight" style="margin-bottom:10px">
-            <span class="pill mono" id="icon-preview">no icon</span>
-          </div>
-
-          <div class="cols" style="grid-template-columns:repeat(4, 1fr)">
-            <label class="field"><span>Row</span><input id="b-row" type="number" min="0" oninput="markDirty()"></label>
-            <label class="field"><span>Column</span><input id="b-col" type="number" min="0" oninput="markDirty()"></label>
-            <label class="field"><span>Column span</span><input id="b-cspan" type="number" min="1" oninput="markDirty()"></label>
-            <label class="field"><span>Row span</span><input id="b-rspan" type="number" min="1" oninput="markDirty()"></label>
-          </div>
-
-          <label class="field"><span>Action</span>
-            <select id="b-action" onchange="onActionChange()"></select>
-          </label>
-          <div class="row tight" style="margin:-4px 0 10px">
-            <span class="pill" id="b-scope"></span>
-            <span class="grow"></span>
-            <button class="btn ghost sm" onclick="fillExample()">Use example</button>
-          </div>
-
-          <label class="field"><span>Parameters (JSON)</span>
-            <textarea id="b-params" spellcheck="false" oninput="markDirty()"></textarea>
-          </label>
-
-          <div class="cols" style="grid-template-columns:1fr 1fr">
-            <label class="field"><span>State</span>
-              <select id="b-state" onchange="onStateChange()">
-                <option value="momentary">momentary — visual feedback only</option>
-                <option value="toggle">toggle — on or off</option>
-                <option value="radio">radio — one of a group</option>
-                <option value="status">status — label from the host</option>
-                <option value="progress">progress — 0 to 1 bar</option>
-                <option value="counter">counter — an integer</option>
-                <option value="timer">timer — counts while held</option>
-                <option value="telemetry">telemetry — live metric</option>
-              </select>
-            </label>
-            <label class="field" id="b-group-wrap" style="display:none"><span>Radio group</span>
-              <input id="b-group" oninput="markDirty()">
-            </label>
-          </div>
-
-          <div id="b-telemetry" style="display:none">
-            <div class="cols" style="grid-template-columns:1fr 1fr">
-              <label class="field"><span>Metric</span><input id="b-metric" placeholder="cpu.usage" oninput="markDirty()"></label>
-              <label class="field"><span>Format</span><input id="b-format" placeholder="{value:.0f}%" oninput="markDirty()"></label>
+        <div class="step">
+          <div class="n">2</div>
+          <div>
+            <h3>Tell the phone where this computer is</h3>
+            <p><strong>Over a cable</strong> — run this once on the computer, then type
+              <code class="mono">127.0.0.1:8765</code> in the app and press
+              <em>Connect over USB</em>:</p>
+            <div class="row tight" style="margin-bottom:10px">
+              <input class="mono" id="adb-cmd" readonly value="adb reverse tcp:8765 tcp:8765" style="max-width:330px">
+              <button class="btn ghost sm" onclick="copyText('adb reverse tcp:8765 tcp:8765')">Copy</button>
+            </div>
+            <p><strong>Over Wi-Fi</strong> — type this address in the app instead:</p>
+            <div class="row tight">
+              <input class="mono" id="lan-addr" readonly style="max-width:330px">
+              <button class="btn ghost sm" onclick="copyText(document.getElementById('lan-addr').value)">Copy</button>
             </div>
           </div>
+        </div>
 
-          <div class="row" style="margin-top:6px">
-            <button class="btn" onclick="saveButton()">Save button</button>
-            <button class="btn danger" onclick="deleteButton()">Delete</button>
+        <div class="step">
+          <div class="n">3</div>
+          <div>
+            <h3>Type this PIN on the phone</h3>
+            <p id="pin-help">Press the button and the PIN appears here. It is good for two minutes.</p>
+            <div class="row">
+              <button class="btn big" onclick="showPin()">Show a PIN</button>
+              <span class="pin mono" id="pin-display"></span>
+            </div>
+            <p class="hint" id="pin-left" style="margin-top:8px"></p>
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- ── Devices ─────────────────────────────────────────────────────── -->
-    <section id="tab-devices">
-      <div class="card">
-        <h2>Paired devices <span class="grow"></span><button class="btn sm ghost" onclick="loadDevices()">Refresh</button></h2>
-        <table>
-          <thead><tr><th>Device</th><th>Platform</th><th>Scopes</th><th>Status</th><th></th></tr></thead>
-          <tbody id="devices-body"></tbody>
-        </table>
-        <p class="hint" style="margin:14px 0 0">
-          Several phones may connect at once, each with its own token and scopes.
-          Revoking deletes the record so the token stops working; disabling keeps it
-          but refuses the connection, which the phone reports as "revoked by the
-          host" rather than asking to pair again.
-        </p>
+      <div class="card" style="margin-top:16px">
+        <h2>Is everything working?</h2>
+        <p class="sub">This is the same check as <code class="mono">mobiledeck doctor</code>.</p>
+        <dl class="kv" id="health-kv"></dl>
       </div>
     </section>
 
-    <!-- ── Pair ────────────────────────────────────────────────────────── -->
-    <section id="tab-pair">
+    <!-- ── Sounds ─────────────────────────────────────────────────────── -->
+    <section id="tab-sounds">
+      <p class="lede">
+        A sound here can be put on any square. Add your own files, then drag one onto
+        the board, or press a square and choose it.
+      </p>
+
       <div class="card">
-        <h2>Add a phone</h2>
-        <p class="hint" style="margin-top:0">
-          On the phone: open MobileDeck, enter this machine's address, then the PIN below.
-          Over a cable, run <code>adb reverse tcp:8765 tcp:8765</code> and use
-          <code>127.0.0.1:8765</code>.
-        </p>
-        <div class="row" style="margin:18px 0">
-          <button class="btn" onclick="openPairing()">Open pairing</button>
-          <span class="grow"></span>
-          <span id="pin-display" class="mono" style="font-size:32px;letter-spacing:10px;font-weight:600"></span>
+        <h2>Add a sound</h2>
+        <p class="sub">Drop an audio file here, or pick one. WAV, MP3, OGG, FLAC and M4A work.</p>
+        <div id="dropzone" class="empty-state" style="cursor:pointer;padding:30px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <h3>Drop an audio file here</h3>
+          <p>or <span style="color:var(--accent)">browse for one</span></p>
+          <input type="file" id="sound-file" accept="audio/*" style="display:none">
         </div>
-        <div id="pair-note" class="hint"></div>
+      </div>
+
+      <div class="card">
+        <h2>Your sounds <span class="grow"></span><button class="btn ghost sm" onclick="loadSounds()">Refresh</button></h2>
+        <p class="sub" id="sounds-hint"></p>
+        <div class="cols" id="sound-list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Where the files live</h2>
+        <p class="sub">Put files here directly if you prefer. They appear in the list after a refresh.</p>
+        <div class="row tight">
+          <input class="mono" id="sounds-dir" readonly>
+          <button class="btn ghost sm" onclick="copyText(document.getElementById('sounds-dir').value)">Copy folder path</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Phones ─────────────────────────────────────────────────────── -->
+    <section id="tab-phones">
+      <p class="lede">Every phone you have paired. You can limit what each one is allowed to do.</p>
+      <div class="card">
+        <h2>Connected phones <span class="grow"></span><button class="btn ghost sm" onclick="loadPhones()">Refresh</button></h2>
+        <table>
+          <thead><tr><th>Phone</th><th>What it may do</th><th>Right now</th><th></th></tr></thead>
+          <tbody id="phones-body"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>How this computer is doing</h2>
+        <p class="sub">A square can show any of these live on the phone.</p>
+        <div class="gauges" id="gauges"><div class="hint">Nothing to show.</div></div>
+      </div>
+      <div class="card">
+        <h2>This computer</h2>
+        <dl class="kv" id="about-kv"></dl>
       </div>
     </section>
   </main>
 </div>
 
-<!-- ── icon picker ───────────────────────────────────────────────────────── -->
+<!-- ── pick what a square does ────────────────────────────────────────────── -->
+<div class="scrim" id="what-scrim">
+  <div class="modal">
+    <div class="head"><strong id="what-title">What should this square do?</strong><span class="grow"></span>
+      <button class="btn ghost sm" onclick="closeWhat()">Cancel</button></div>
+    <div class="body">
+      <div class="choices" id="what-choices"></div>
+      <div id="what-extra"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── icon picker ────────────────────────────────────────────────────────── -->
 <div class="scrim" id="icon-scrim">
   <div class="modal">
-    <header class="row">
-      <strong>Choose an icon</strong>
-      <span class="grow"></span>
+    <div class="head"><strong>Pick an icon</strong><span class="grow"></span>
       <span class="pill" id="icon-licence"></span>
-      <button class="btn ghost sm" onclick="closeIconPicker()">Close</button>
-    </header>
+      <button class="btn ghost sm" onclick="closeIconPicker()">Close</button></div>
     <div class="body">
       <div class="row">
-        <select id="icon-set" style="max-width:220px" onchange="searchIcons()"></select>
-        <input id="icon-query" placeholder="Search icons… (for example terminal)" oninput="debouncedSearch()" style="flex:1">
-        <button class="btn ghost sm" onclick="searchIcons()">Search</button>
+        <select id="icon-set" style="max-width:230px" onchange="onIconSetChange()"></select>
+        <input id="icon-query" placeholder="Search, for example terminal" oninput="debouncedSearch()" style="flex:1">
       </div>
-      <p class="hint" style="margin:10px 0 0">
-        Search needs the internet. An icon you use is cached on the host, so the
-        profile keeps working offline afterwards.
-      </p>
+      <p class="hint" style="margin:10px 0 0">Search needs the internet. An icon you use is kept on this
+        computer, so the board keeps working offline afterwards.</p>
       <div class="icon-grid" id="icon-results"></div>
-      <div class="row" style="margin-top:16px">
-        <input id="icon-import-name" placeholder="Name for your own image" style="max-width:220px">
-        <input type="file" id="icon-file" accept="image/*" style="max-width:260px">
-        <button class="btn ghost sm" onclick="importIcon()">Upload</button>
+      <div class="row" style="margin-top:18px">
+        <input id="icon-import-name" placeholder="Name for your own image" style="max-width:230px">
+        <input type="file" id="icon-file" accept="image/*" style="max-width:250px">
+        <button class="btn ghost sm" onclick="uploadIcon()">Use this image</button>
       </div>
     </div>
-    <footer>
-      <button class="btn ghost" onclick="closeIconPicker()">Cancel</button>
-    </footer>
+  </div>
+</div>
+
+<!-- ── edit a square ──────────────────────────────────────────────────────── -->
+<div class="scrim" id="edit-scrim">
+  <div class="modal">
+    <div class="head"><strong id="edit-title">Edit this square</strong><span class="grow"></span>
+      <button class="btn ghost sm" onclick="closeEdit()">Close</button></div>
+    <div class="body">
+      <div class="cols" style="grid-template-columns:1fr 1fr">
+        <label class="field"><span>Name on the square</span><input id="e-label"></label>
+        <label class="field"><span>Icon</span>
+          <div class="row tight">
+            <input id="e-icon" placeholder="An emoji, or browse">
+            <button class="btn ghost sm" onclick="openIconPicker()">Browse</button>
+          </div>
+        </label>
+      </div>
+      <div class="row tight" style="margin:-4px 0 14px"><span class="pill" id="e-icon-preview">no icon</span></div>
+
+      <div class="field"><span>What it does</span>
+        <div class="row">
+          <span class="pill" id="e-action"></span>
+          <button class="btn ghost sm" onclick="openWhat()">Change</button>
+        </div>
+      </div>
+      <div class="field" id="e-params-wrap"><span>Options <span class="hint">— filled in for you; you can ignore it</span></span>
+        <textarea id="e-params" spellcheck="false"></textarea>
+      </div>
+
+      <div class="field"><span>How big it is</span>
+        <div class="row tight">
+          <span class="pill" id="e-size">1 × 1</span>
+          <button class="btn ghost sm" onclick="resize(-1,0)">Narrower</button>
+          <button class="btn ghost sm" onclick="resize(1,0)">Wider</button>
+          <button class="btn ghost sm" onclick="resize(0,-1)">Shorter</button>
+          <button class="btn ghost sm" onclick="resize(0,1)">Taller</button>
+        </div>
+      </div>
+
+      <details>
+        <summary class="hint">Advanced</summary>
+        <div class="cols" style="grid-template-columns:repeat(4, 1fr); margin-top:10px">
+          <label class="field"><span>Row</span><input id="e-row" type="number" min="0"></label>
+          <label class="field"><span>Column</span><input id="e-col" type="number" min="0"></label>
+          <label class="field"><span>Width</span><input id="e-cspan" type="number" min="1"></label>
+          <label class="field"><span>Height</span><input id="e-rspan" type="number" min="1"></label>
+        </div>
+      </details>
+    </div>
+    <div class="foot">
+      <button class="btn danger" onclick="deleteSquare()">Delete this square</button>
+      <span class="grow"></span>
+      <button class="btn" onclick="saveSquare()">Done</button>
+    </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-// ── bridge ────────────────────────────────────────────────────────────────
+// ── talk to the host ──────────────────────────────────────────────────────
 // Every call goes through the Go side, which holds the admin token. JavaScript
-// never sees it.
-let bridgeReady = false;
-
+// never sees the token.
+let ready = false;
 async function api(method, path, body) {
-  if (!bridgeReady) throw new Error("the panel bridge is not ready yet");
+  if (!ready) throw new Error("still starting up");
   const raw = await md(method, path, body ? JSON.stringify(body) : "");
-  const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-  if (parsed.status >= 400) {
-    const b = parsed.body;
+  const res = typeof raw === "string" ? JSON.parse(raw) : raw;
+  if (res.status >= 400) {
+    const b = res.body;
     throw new Error((b && (b.message || b.error)) || JSON.stringify(b));
   }
-  return parsed.body;
+  return res.body;
 }
-
-function toast(message, kind) {
+function toast(msg, kind) {
   const el = document.getElementById("toast");
-  el.textContent = message;
+  el.textContent = msg;
   el.className = "toast show " + (kind || "");
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove("show"), kind === "err" ? 9000 : 3200);
 }
-
 function esc(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function copyText(t) {
+  navigator.clipboard.writeText(t).then(() => toast("Copied", "ok"), () => toast("Could not copy", "err"));
 }
 
 // ── theme ─────────────────────────────────────────────────────────────────
-const themeBtn = document.getElementById("theme-btn");
-function applyTheme(mode) {
-  document.documentElement.dataset.theme = mode;
-  try { localStorage.setItem("md.theme", mode); } catch (_) {}
+function applyTheme(m) {
+  document.documentElement.dataset.theme = m;
+  try { localStorage.setItem("md.theme", m); } catch (_) {}
 }
-themeBtn.onclick = () => {
+document.getElementById("theme-btn").onclick = () =>
   applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
-};
 applyTheme((() => { try { return localStorage.getItem("md.theme") || "dark"; } catch (_) { return "dark"; } })());
 
 // ── state ─────────────────────────────────────────────────────────────────
-let status = null, actions = [], profiles = [];
-let current = null, currentPage = null, selected = null;
-let dirty = false;
+let status = null, actions = [], boards = [], sounds = [];
+let board = null, screenID = null, selected = null;
+let LAST = {};
 
-function markDirty() {
-  dirty = true;
-  document.getElementById("save-state").textContent = "Unsaved changes.";
-}
-
-// ── tabs ──────────────────────────────────────────────────────────────────
 document.querySelectorAll("nav button").forEach(b => {
   b.onclick = () => {
     document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
     document.querySelectorAll("section").forEach(x => x.classList.remove("active"));
     b.classList.add("active");
     document.getElementById("tab-" + b.dataset.tab).classList.add("active");
-    if (b.dataset.tab === "devices") loadDevices();
-    if (b.dataset.tab === "layout") loadProfiles();
+    if (b.dataset.tab === "sounds") loadSounds();
+    if (b.dataset.tab === "phones") loadPhones();
+    if (b.dataset.tab === "setup") refreshStatus();
   };
 });
 
@@ -584,297 +554,255 @@ async function refreshStatus() {
   try {
     status = await api("GET", "/api/v1/admin/status");
     document.getElementById("dot").className = "dot on";
-    document.getElementById("hostname").textContent = status.host_name || "MobileDeck";
-    document.getElementById("addr").textContent = status.addr || "";
-    const kv = document.getElementById("status-kv");
-    kv.innerHTML = "";
+    document.getElementById("hostname").textContent = status.host_name || "this computer";
+    const addr = (status.addresses || [])[0] || status.addr || "";
+    document.getElementById("lan-addr").value = addr.replace(/^https?:\/\//, "");
+
+    const kv = document.getElementById("health-kv");
     const rows = [
-      ["Host id", status.host_id],
-      ["Listening", status.addr],
-      ["Reachable at", (status.addresses || []).join("   ") || "loopback only"],
-      ["Version", (status.version || "") + "   " + (status.os || "")],
-      ["TLS", status.tls ? "on — " + (status.fingerprint || "").slice(0, 29) + "…" : "off"],
-      ["Uptime", fmtUptime(status.uptime_s)],
-      ["Profiles", (status.profiles || []).join(", ") || "none"],
-      ["Devices connected", String((status.sessions || []).length)],
+      ["Computer", status.host_name],
+      ["Reachable from the phone at", addr || "this computer only"],
+      ["Secure connection", status.tls ? "yes" : "no (fine on a home network)"],
+      ["Running for", fmtUptime(status.uptime_s)],
+      ["Boards", (status.profiles || []).join(", ") || "none yet"],
+      ["Phones connected", String((status.sessions || []).length)],
     ];
-    for (const [k, v] of rows) {
-      kv.insertAdjacentHTML("beforeend",
-        "<dt>" + esc(k) + "</dt><dd class='mono'>" + esc(v) + "</dd>");
+    kv.innerHTML = rows.map(([k, v]) =>
+      "<dt>" + esc(k) + "</dt><dd class='mono'>" + esc(v) + "</dd>").join("");
+
+    const about = document.getElementById("about-kv");
+    if (about) {
+      about.innerHTML = [
+        ["Version", (status.version || "") + " on " + (status.os || "")],
+        ["This program's folders", status.config_dir || ""],
+        ["Offers", (status.profiles || []).length + " boards"],
+      ].map(([k, v]) => "<dt>" + esc(k) + "</dt><dd class='mono'>" + esc(v) + "</dd>").join("");
     }
     renderGauges();
   } catch (e) {
     document.getElementById("dot").className = "dot";
-    toast("Cannot reach the host: " + e.message, "err");
   }
 }
-
 function fmtUptime(s) {
   s = Number(s) || 0;
   const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
-  if (d) return d + "d " + h + "h";
-  if (h) return h + "h " + m + "m";
-  if (m) return m + "m " + Math.floor(s % 60) + "s";
-  return s + "s";
+  if (d) return d + " days " + h + " hours";
+  if (h) return h + " hours " + m + " minutes";
+  if (m) return m + " minutes";
+  return s + " seconds";
 }
 
-// The gauges read from the same telemetry the phones get. They are shown here so
-// a user can confirm the metric a button is bound to actually exists on this
-// machine, which is the usual reason a telemetry button shows a dash.
-function renderGauges() {
-  const el = document.getElementById("gauges");
-  const metrics = (status && status.metrics) || [];
-  if (!metrics.length) {
-    el.innerHTML = "<div class='hint'>This host reports no metrics.</div>";
-    return;
+// ── sounds ────────────────────────────────────────────────────────────────
+async function loadSounds() {
+  try {
+    const data = await api("GET", "/api/v1/admin/sounds");
+    sounds = data.sounds || [];
+    document.getElementById("sounds-dir").value = data.dir || "";
+    document.getElementById("sounds-hint").textContent = sounds.length
+      ? sounds.length + " sound" + (sounds.length === 1 ? "" : "s") + ". Press one to hear it here."
+      : "No sounds yet. Add one above.";
+    const list = document.getElementById("sound-list");
+    if (!sounds.length) {
+      list.innerHTML = "<div class='hint'>Nothing here yet.</div>";
+      return;
+    }
+    list.innerHTML = sounds.map(s =>
+      "<div class='sound-row' data-file='" + esc(s.file) + "'>" +
+        "<svg viewBox='0 0 24 24' width='17' height='17' fill='none' stroke='currentColor' stroke-width='2'><path d='M9 18V6l10-2v12'/><circle cx='6' cy='18' r='3'/><circle cx='19' cy='16' r='3'/></svg>" +
+        "<span class='nm'>" + esc(s.name) + "</span>" +
+        "<span class='hint'>" + fmtBytes(s.bytes) + "</span>" +
+        "<button class='btn ghost sm' data-a='use'>Put on the board</button>" +
+        "<button class='btn danger sm' data-a='del'>Remove</button>" +
+      "</div>").join("");
+
+    for (const row of list.querySelectorAll(".sound-row")) {
+      const file = row.dataset.file;
+      row.querySelector(".nm").onclick = () => previewSound(row, file);
+      row.querySelector("[data-a=use]").onclick = () => addSoundToBoard(file);
+      row.querySelector("[data-a=del]").onclick = (e) => { e.stopPropagation(); removeSound(file); };
+    }
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// Preview locally, from the host, so the user hears the file before binding it.
+let previewEl = null;
+function previewSound(row, file) {
+  if (previewEl) { previewEl.pause(); previewEl = null; }
+  document.querySelectorAll(".sound-row.playing").forEach(r => r.classList.remove("playing"));
+  const audio = new Audio("/api/v1/admin/sounds/" + encodeURIComponent(file) + "/audio");
+  previewEl = audio;
+  row.classList.add("playing");
+  audio.onended = audio.onerror = () => row.classList.remove("playing");
+  audio.play().catch(() => {
+    row.classList.remove("playing");
+    toast("Could not play that file here. It may still work on the phone.", "warn");
+  });
+}
+
+async function addSoundToBoard(file) {
+  // A sound needs a square. Use the first free one, or say so.
+  const s = screen();
+  if (!s) return;
+  const g = grid();
+  const used = new Set((s.buttons || []).map(b => b.cell.row + "," + b.cell.column));
+  for (let r = 0; r < g.rows; r++) {
+    for (let c = 0; c < g.columns; c++) {
+      if (!used.has(r + "," + c)) {
+        await addSquare(r, c, "sound.play", { file: file.replace(/\.(wav|mp3|ogg|flac|m4a|aac|opus)$/i, "") });
+        return;
+      }
+    }
   }
-  el.innerHTML = metrics.map(m => {
-    const known = LAST_METRICS[m];
-    const v = known == null ? null : known;
-    const pct = v == null ? 0 : Math.max(0, Math.min(100, v));
-    const cls = v == null ? "" : (pct > 90 ? "err" : pct > 75 ? "warn" : "");
-    const shown = v == null ? "--" : (m.includes("bytes") ? fmtBytes(v) : v.toFixed(1) + (m.includes("pct") || m.includes("usage") ? "%" : ""));
-    return "<div class='gauge'><div class='name'>" + esc(m) + "</div>" +
-           "<div class='val'>" + esc(shown) + "</div>" +
-           "<div class='bar " + cls + "'><i style='width:" + pct + "%'></i></div></div>";
-  }).join("");
+  toast("This screen is full. Add another screen first.", "warn");
 }
 
-let LAST_METRICS = {};
+async function removeSound(file) {
+  if (!confirm("Remove " + file + "?\n\nIf a square uses it, the square will stop working.")) return;
+  try {
+    await api("DELETE", "/api/v1/admin/sounds/" + encodeURIComponent(file));
+    toast("Removed", "ok");
+    loadSounds();
+  } catch (e) { toast(e.message, "err"); }
+}
+
 function fmtBytes(v) {
-  const u = ["B", "KB", "MB", "GB", "TB"];
+  const u = ["B", "KB", "MB", "GB"];
   let i = 0;
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
   return v.toFixed(v < 10 && i > 0 ? 1 : 0) + " " + u[i];
 }
 
-async function loadCapabilities() {
+// Upload: the drop zone and the file picker both land here.
+const dz = document.getElementById("dropzone");
+const fileInput = document.getElementById("sound-file");
+dz.onclick = () => fileInput.click();
+fileInput.onchange = () => { if (fileInput.files[0]) uploadSound(fileInput.files[0]); };
+dz.ondragover = e => { e.preventDefault(); dz.style.borderColor = "var(--accent)"; };
+dz.ondragleave = () => { dz.style.borderColor = ""; };
+dz.ondrop = e => {
+  e.preventDefault();
+  dz.style.borderColor = "";
+  if (e.dataTransfer.files[0]) uploadSound(e.dataTransfer.files[0]);
+};
+
+async function uploadSound(file) {
+  dz.querySelector("h3").textContent = "Uploading " + file.name + "…";
   try {
-    const info = await api("GET", "/api/v1/admin/actions");
-    actions = info.actions || [];
-    const kv = document.getElementById("caps-kv");
-    kv.innerHTML =
-      "<dt>Action types</dt><dd class='mono'>" + actions.length + "</dd>" +
-      "<dt>Scopes</dt><dd class='mono'>" + esc((info.scopes || []).join(", ")) + "</dd>" +
-      "<dt>Not granted by default</dt><dd class='mono'>" + esc((info.high_risk_scopes || []).join(", ")) + "</dd>";
-    populateActionSelect();
-    renderPalette();
-  } catch (_) { /* the status card already reported the failure */ }
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    await api("POST", "/api/v1/admin/sounds", { name: file.name, data: btoa(bin) });
+    toast("Added " + file.name, "ok");
+    await loadSounds();
+    renderBoard();
+  } catch (e) {
+    toast("Could not add that file: " + e.message, "err");
+  } finally {
+    dz.querySelector("h3").textContent = "Drop an audio file here";
+    fileInput.value = "";
+  }
 }
 
-async function reloadProfiles() {
-  try {
-    await api("POST", "/api/v1/admin/profiles/reload");
-    toast("Profiles reloaded", "ok");
-    loadProfiles();
-  } catch (e) { toast(e.message, "err"); }
-}
-
-// ── devices ───────────────────────────────────────────────────────────────
-async function loadDevices() {
-  try {
-    const data = await api("GET", "/api/v1/admin/devices");
-    const body = document.getElementById("devices-body");
-    const devices = data.devices || [];
-    if (!devices.length) {
-      body.innerHTML = "<tr><td colspan='5'><div class='empty-state'>" +
-        "<h3>No devices paired</h3><p>Use the Pair tab to add a phone.</p></div></td></tr>";
-      return;
-    }
-    body.innerHTML = "";
-    for (const d of devices) {
-      const tr = document.createElement("tr");
-      tr.innerHTML =
-        "<td><strong>" + esc(d.name) + "</strong><br><span class='mono hint'>" + esc(d.id) + "</span></td>" +
-        "<td>" + esc(d.platform || "—") + "</td>" +
-        "<td class='mono' style='font-size:11.5px'>" + esc((d.scopes || []).join(", ")) + "</td>" +
-        "<td>" + (d.disabled
-          ? "<span class='pill err'>disabled</span>"
-          : d.connected ? "<span class='pill ok'>connected</span>" : "<span class='pill'>idle</span>") + "</td>";
-      const td = document.createElement("td");
-      td.className = "row tight";
-      td.style.justifyContent = "flex-end";
-      td.innerHTML =
-        "<button class='btn ghost sm' data-a='scopes'>Scopes</button>" +
-        "<button class='btn ghost sm' data-a='toggle'>" + (d.disabled ? "Enable" : "Disable") + "</button>" +
-        "<button class='btn danger sm' data-a='revoke'>Revoke</button>";
-      td.querySelector("[data-a=scopes]").onclick = () => editScopes(d);
-      td.querySelector("[data-a=toggle]").onclick = () => toggleDevice(d);
-      td.querySelector("[data-a=revoke]").onclick = () => revokeDevice(d);
-      tr.appendChild(td);
-      body.appendChild(tr);
-    }
-  } catch (e) { toast(e.message, "err"); }
-}
-
-async function editScopes(d) {
-  const want = prompt(
-    "Scopes for " + d.name + " (comma separated)\n\n" +
-    "Available: keyboard, mouse, media, apps, scripts, system.read, system.power, profiles.write, plugins\n\n" +
-    "scripts and system.power are high risk: they run commands and power off the machine.",
-    (d.scopes || []).join(", "));
-  if (want === null) return;
-  try {
-    await api("PUT", "/api/v1/admin/devices/" + encodeURIComponent(d.id) + "/scopes",
-      { scopes: want.split(",").map(s => s.trim()).filter(Boolean) });
-    toast("Scopes updated", "ok");
-    loadDevices();
-  } catch (e) { toast(e.message, "err"); }
-}
-
-async function toggleDevice(d) {
-  try {
-    await api("PATCH", "/api/v1/admin/devices/" + encodeURIComponent(d.id), { disabled: !d.disabled });
-    loadDevices();
-  } catch (e) { toast(e.message, "err"); }
-}
-
-async function revokeDevice(d) {
-  if (!confirm("Revoke " + d.name + "?\n\nIts token stops working immediately and the phone must pair again.")) return;
-  try {
-    await api("DELETE", "/api/v1/admin/devices/" + encodeURIComponent(d.id));
-    toast("Revoked " + d.name, "ok");
-    loadDevices();
-  } catch (e) { toast(e.message, "err"); }
-}
-
-// ── pairing ───────────────────────────────────────────────────────────────
-async function openPairing() {
-  try {
-    const r = await api("POST", "/api/v1/admin/pair", {});
-    const el = document.getElementById("pin-display");
-    el.textContent = r.pin.split("").join(" ");
-    document.getElementById("pair-note").textContent =
-      "Valid for " + r.expires_in_s + " seconds. Enter it on the phone now.";
-    let left = r.expires_in_s;
-    clearInterval(el._t);
-    el._t = setInterval(() => {
-      left--;
-      if (left <= 0) {
-        clearInterval(el._t);
-        el.textContent = "";
-        document.getElementById("pair-note").textContent = "The pairing window has closed.";
-      } else {
-        document.getElementById("pair-note").textContent =
-          "Valid for " + left + " more seconds.";
-      }
-    }, 1000);
-  } catch (e) { toast(e.message, "err"); }
-}
-
-// ── layout: profiles and pages ────────────────────────────────────────────
-async function loadProfiles() {
+// ── boards and screens ────────────────────────────────────────────────────
+async function loadBoards() {
   try {
     const data = await api("GET", "/api/v1/admin/profiles");
-    profiles = data.profiles || [];
-    const sel = document.getElementById("profile-select");
-    sel.innerHTML = profiles.map(p =>
-      "<option value='" + esc(p.id) + "'>" + esc(p.name) + "  (" + esc(p.id) + ")</option>").join("");
+    boards = data.profiles || [];
+    const sel = document.getElementById("board-select");
+    sel.innerHTML = boards.map(b =>
+      "<option value='" + esc(b.id) + "'>" + esc(b.name) + "</option>").join("");
     if (data.errors && data.errors.length) {
-      toast("Some profiles were rejected:\n" + data.errors.map(e => e.id + ": " + e.error).join("\n"), "err");
+      toast("Some boards could not be loaded:\n" + data.errors.map(e => e.id + ": " + e.error).join("\n"), "err");
     }
-    if (profiles.length && !current) {
-      await selectProfile(profiles[0].id);
-    } else if (!profiles.length) {
-      document.getElementById("button-grid").innerHTML =
-        "<div class='empty-state'><h3>No profiles yet</h3><p>Press New to create one.</p></div>";
+    if (boards.length && !board) await switchBoard(boards[0].id);
+    else if (!boards.length) {
+      document.getElementById("board-grid").innerHTML =
+        "<div class='empty-state'><h3>No board yet</h3><p>Press “Start a new board”.</p></div>";
     }
-    renderGauges();
   } catch (e) { toast(e.message, "err"); }
 }
 
-async function selectProfile(id) {
-  if (dirty && !confirm("Discard unsaved changes?")) return;
+async function switchBoard(id) {
   try {
-    current = await api("GET", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document");
+    board = await api("GET", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document");
     selected = null;
-    dirty = false;
-    document.getElementById("save-state").textContent = "All changes are saved as you make them.";
-    currentPage = current.root_page || (current.pages[0] && current.pages[0].id) || null;
-    document.getElementById("profile-select").value = id;
-    document.getElementById("revision-pill").textContent =
-      (profiles.find(p => p.id === id) || {}).revision || "";
-    renderPageTabs(); renderGrid(); renderEditor(); renderPalette();
+    screenID = board.root_page || (board.pages[0] && board.pages[0].id) || null;
+    document.getElementById("board-select").value = id;
+    renderScreens(); renderBoard();
   } catch (e) { toast(e.message, "err"); }
 }
 
-function renderPageTabs() {
-  const el = document.getElementById("page-tabs");
+const screen = () => board && board.pages.find(p => p.id === screenID);
+const grid = () => (screen() && screen().grid) || (board.settings && board.settings.grid) || { columns: 4, rows: 4 };
+
+function renderScreens() {
+  const el = document.getElementById("screen-tabs");
   el.innerHTML = "";
-  for (const p of current.pages) {
+  for (const p of board.pages) {
     const b = document.createElement("button");
-    b.className = "btn sm " + (p.id === currentPage ? "" : "ghost");
-    b.innerHTML = esc(p.name) + (p.id === current.root_page ? "  ★" : "");
-    b.onclick = () => { currentPage = p.id; selected = null; renderPageTabs(); renderGrid(); renderEditor(); };
+    b.className = "btn sm " + (p.id === screenID ? "" : "ghost");
+    b.textContent = p.name + (p.id === board.root_page ? "  (first)" : "");
+    b.onclick = () => { screenID = p.id; selected = null; renderScreens(); renderBoard(); };
     el.appendChild(b);
   }
 }
 
-const page = () => current.pages.find(p => p.id === currentPage);
-const gridFor = p => (p && p.grid) || (current.settings && current.settings.grid) || { columns: 4, rows: 5 };
-
-// ── layout: the action palette ────────────────────────────────────────────
-// Dragging from here onto the grid is how a button is created. The list is the
-// host's own registry, so it cannot offer something the host will not run.
-function renderPalette() {
-  const q = (document.getElementById("palette-search").value || "").toLowerCase();
-  const risky = ["scripts", "system.power"];
-  const list = document.getElementById("palette-list");
-  const items = actions.filter(a => !q || a.type.toLowerCase().includes(q));
-  if (!items.length) {
-    list.innerHTML = "<div class='hint'>No action matches.</div>";
-    return;
-  }
-  list.innerHTML = items.map(a =>
-    "<div class='palette-item " + (risky.includes(a.scope) ? "risk" : "") + "' draggable='true' data-type='" + esc(a.type) + "'>" +
-      "<span>" + esc(a.type) + "</span>" +
-      "<span class='scope'>" + esc(a.scope || "") + "</span>" +
-    "</div>").join("");
-
-  list.querySelectorAll(".palette-item").forEach(el => {
-    el.addEventListener("dragstart", ev => {
-      paletteDrag = el.dataset.type;
-      ev.dataTransfer.setData("text/plain", el.dataset.type);
-      ev.dataTransfer.effectAllowed = "copy";
-    });
-    el.addEventListener("dragend", () => { paletteDrag = null; clearDropHints(); });
-    // A click adds to the first free cell, which is the fastest path when the
-    // user does not care where it lands.
-    el.addEventListener("dblclick", () => addActionToFirstFreeCell(el.dataset.type));
-  });
-}
-let paletteDrag = null;
-
-function addActionToFirstFreeCell(type) {
-  const p = page();
-  if (!p) return;
-  const g = gridFor(p);
-  const used = new Set((p.buttons || []).map(b => b.cell.row + "," + b.cell.column));
-  for (let r = 0; r < g.rows; r++) {
-    for (let c = 0; c < g.columns; c++) {
-      if (!used.has(r + "," + c)) { createButtonAt(r, c, type); return; }
-    }
-  }
-  toast("This page is full. Add a page or enlarge the grid.", "warn");
+async function addScreen() {
+  const name = document.getElementById("new-screen").value.trim();
+  if (!name) { toast("Give the screen a name.", "err"); return; }
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "screen";
+  if (board.pages.some(p => p.id === id)) { toast("There is already a screen with that name.", "err"); return; }
+  board.pages.push({ id, name, buttons: [] });
+  screenID = id;
+  document.getElementById("new-screen").value = "";
+  renderScreens(); renderBoard();
+  await save();
+  toast("Screen added", "ok");
 }
 
-// ── layout: the grid ──────────────────────────────────────────────────────
-function renderGrid() {
-  const p = page();
-  if (!p) {
-    document.getElementById("button-grid").innerHTML = "";
-    return;
-  }
-  const g = gridFor(p);
-  document.getElementById("grid-cols").value = g.columns;
-  document.getElementById("grid-rows").value = g.rows;
+async function deleteScreen() {
+  if (board.pages.length <= 1) { toast("A board needs at least one screen.", "err"); return; }
+  if (screenID === board.root_page) { toast("This is the first screen, so it cannot be deleted. Open another screen and press “Make first” first.", "err"); return; }
+  if (!confirm("Delete the screen “" + screen().name + "” and everything on it?")) return;
+  board.pages = board.pages.filter(p => p.id !== screenID);
+  screenID = board.pages[0].id;
+  renderScreens(); renderBoard();
+  await save();
+}
 
-  const grid = document.getElementById("button-grid");
-  grid.style.gridTemplateColumns = "repeat(" + g.columns + ", minmax(0,1fr))";
-  grid.innerHTML = "";
+async function newBoard() {
+  const name = prompt("What should this board be called?\n\nFor example: Streaming, Gaming, Work");
+  if (!name) return;
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "board";
+  const doc = {
+    schema: 1, id, name,
+    icon: { type: "emoji", value: "🎛" },
+    settings: { grid: { columns: 4, rows: 4 }, haptic: true,
+      nav: { breadcrumb: true, back_button: true, page_tabs: true } },
+    root_page: "home",
+    pages: [{ id: "home", name: "Home", buttons: [] }],
+  };
+  try {
+    await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document", doc);
+    board = null;
+    await loadBoards();
+    await switchBoard(id);
+    toast("Created “" + name + "”", "ok");
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ── the board grid ────────────────────────────────────────────────────────
+function renderBoard() {
+  const s = screen();
+  const el = document.getElementById("board-grid");
+  if (!s) { el.innerHTML = ""; return; }
+  const g = grid();
+  el.style.gridTemplateColumns = "repeat(" + g.columns + ", minmax(0,1fr))";
+  el.innerHTML = "";
 
   const occupied = {};
-  for (const b of (p.buttons || [])) {
+  for (const b of (s.buttons || [])) {
     const c = b.cell || { row: 0, column: 0 };
     occupied[c.row + "," + c.column] = b;
     for (let r = c.row; r < c.row + (c.row_span || 1); r++)
@@ -884,563 +812,663 @@ function renderGrid() {
 
   for (let r = 0; r < g.rows; r++) {
     for (let c = 0; c < g.columns; c++) {
-      const cell = occupied[r + "," + c];
-      if (cell === "covered") continue;
-      const tile = document.createElement("div");
-      tile.className = "tile" + (cell ? "" : " empty");
-      if (cell && cell.id === selected) tile.classList.add("selected");
-      tile.dataset.row = r; tile.dataset.col = c;
+      const b = occupied[r + "," + c];
+      if (b === "covered") continue;
+      const pad = document.createElement("div");
+      pad.className = "pad" + (b ? "" : " empty");
+      pad.dataset.row = r; pad.dataset.col = c;
 
-      if (cell) {
-        const icon = cell.icon || {};
-        const st = (cell.state && cell.state.type) || "momentary";
-        const badge = st === "telemetry" ? "<span class='badge tel'>live</span>"
-                    : (st === "toggle" || st === "radio") ? "<span class='badge tog'>" + st + "</span>"
-                    : "";
+      if (b) {
+        const isSound = b.on_press && b.on_press.type === "sound.play";
+        if (isSound) pad.classList.add("sound");
+        if (b.id === selected) pad.classList.add("selected");
+        pad.draggable = true;
+
+        const ic = b.icon || {};
         let ico;
-        if (icon.type === "image") {
-          const uri = (current.icons || {})[icon.value];
-          ico = uri ? "<img src='" + uri + "' alt=''>" : "<span title='icon not cached on the host'>▢</span>";
+        if (ic.type === "image") {
+          const uri = (board.icons || {})[ic.value];
+          ico = uri ? "<img src='" + uri + "' alt=''>" : "▢";
         } else {
-          ico = esc(icon.value || "·");
+          ico = esc(ic.value || (isSound ? "🔊" : "·"));
         }
-        tile.classList.add("draggable");
-        tile.draggable = true;
-        tile.innerHTML = badge +
-          "<span class='handle' title='drag to move'>⠿</span>" +
+        pad.innerHTML =
+          "<span class='handle'>⠿</span>" +
           "<div class='ico'>" + ico + "</div>" +
-          "<div class='lbl'>" + esc(cell.label || cell.id) + "</div>" +
-          "<div class='act'>" + esc((cell.on_press && cell.on_press.type) || "") + "</div>";
-        tile.onclick = () => { selected = cell.id; renderGrid(); renderEditor(); };
-        attachDrag(tile, cell);
+          "<div class='lbl'>" + esc(b.label || b.id) + "</div>" +
+          "<div class='sub'>" + esc(shortAction(b)) + "</div>" +
+          (isSound ? "<div class='wave'>" + [5,9,12,7,10].map(h => "<i style='height:" + h + "px'></i>").join("") + "</div>" : "");
+        pad.onclick = () => openEdit(b.id);
+        attachDrag(pad, b);
       } else {
-        tile.textContent = "+";
-        tile.onclick = () => createButtonAt(r, c);
+        pad.textContent = "+";
+        pad.onclick = () => openWhat(r, c);
       }
-      attachDrop(tile, r, c);
-      grid.appendChild(tile);
+      attachDrop(pad, r, c);
+      el.appendChild(pad);
     }
   }
 }
 
-// ── drag and drop ─────────────────────────────────────────────────────────
-let dragSource = null;
-
-function clearDropHints() {
-  document.querySelectorAll(".drop-target,.drop-swap")
-    .forEach(el => el.classList.remove("drop-target", "drop-swap"));
+// shortAction describes what a square does in a few words, for the tile.
+function shortAction(b) {
+  const t = (b.on_press && b.on_press.type) || "";
+  const p = (b.on_press && b.on_press.params) || {};
+  switch (t) {
+    case "sound.play": return "plays a sound";
+    case "keyboard.shortcut": return (p.keys || []).join("+").toLowerCase() || "key press";
+    case "keyboard.text": return "types text";
+    case "keyboard.key": return p.key ? p.key.toLowerCase() : "key press";
+    case "open_terminal": return "opens a terminal";
+    case "open_url": return "opens a link";
+    case "open_folder": return "opens a folder";
+    case "launch_application": return "opens an app";
+    case "media.play_pause": return "play / pause";
+    case "volume.up": return "volume up";
+    case "volume.down": return "volume down";
+    case "volume.mute": return "mute";
+    case "system.lock": return "locks the computer";
+    case "deck.open_page": return "opens another screen";
+    case "deck.back": return "goes back";
+    case "deck.change_profile": return "switches board";
+    case "noop": return "does nothing yet";
+    default: return t.split(".").pop().replace(/_/g, " ");
+  }
 }
 
-function attachDrag(tile, button) {
-  tile.addEventListener("dragstart", ev => {
-    dragSource = button;
-    tile.classList.add("dragging");
-    ev.dataTransfer.setData("text/plain", button.id);
+// ── drag, drop, and the palette ───────────────────────────────────────────
+let dragSource = null;
+let soundDrag = null;
+
+function clearHints() {
+  document.querySelectorAll(".drop-target,.drop-swap").forEach(e => e.classList.remove("drop-target", "drop-swap"));
+}
+function attachDrag(pad, b) {
+  pad.addEventListener("dragstart", ev => {
+    dragSource = b;
+    pad.classList.add("dragging");
+    ev.dataTransfer.setData("text/plain", b.id);
     ev.dataTransfer.effectAllowed = "move";
   });
-  tile.addEventListener("dragend", () => {
-    tile.classList.remove("dragging");
-    dragSource = null;
-    clearDropHints();
-  });
+  pad.addEventListener("dragend", () => { pad.classList.remove("dragging"); dragSource = null; clearHints(); });
 }
-
-function attachDrop(tile, row, col) {
-  tile.addEventListener("dragover", ev => {
-    if (!dragSource && !paletteDrag) return;
+function attachDrop(pad, row, col) {
+  pad.addEventListener("dragover", ev => {
+    if (!dragSource && !soundDrag) return;
     ev.preventDefault();
-    if (paletteDrag) {
-      tile.classList.add("drop-target");
-      return;
-    }
-    const p = page();
-    const target = (p.buttons || []).find(b => b.cell.row === row && b.cell.column === col);
-    tile.classList.toggle("drop-swap", !!target && target.id !== dragSource.id);
-    tile.classList.toggle("drop-target", !target);
+    if (soundDrag) { pad.classList.add("drop-target"); return; }
+    const s = screen();
+    const target = (s.buttons || []).find(b => b.cell.row === row && b.cell.column === col);
+    pad.classList.toggle("drop-swap", !!target && target.id !== dragSource.id);
+    pad.classList.toggle("drop-target", !target);
   });
-
-  tile.addEventListener("dragleave", () => tile.classList.remove("drop-target", "drop-swap"));
-
-  tile.addEventListener("drop", async ev => {
+  pad.addEventListener("dragleave", () => pad.classList.remove("drop-target", "drop-swap"));
+  pad.addEventListener("drop", async ev => {
     ev.preventDefault();
-    clearDropHints();
-
-    // An action dragged in from the palette creates a button here.
-    if (paletteDrag) {
-      const type = paletteDrag;
-      paletteDrag = null;
-      await createButtonAt(row, col, type);
+    clearHints();
+    if (soundDrag) {
+      const f = soundDrag; soundDrag = null;
+      await addSquare(row, col, "sound.play", { file: f });
       return;
     }
     if (!dragSource) return;
-
-    const p = page();
+    const s = screen();
     const from = dragSource.cell || { row: 0, column: 0 };
     if (from.row === row && from.column === col) return;
-    const target = (p.buttons || []).find(b => b.cell.row === row && b.cell.column === col);
-
+    const target = (s.buttons || []).find(b => b.cell.row === row && b.cell.column === col);
     if (target && target.id !== dragSource.id) {
       target.cell = { row: from.row, column: from.column,
         row_span: target.cell.row_span || 1, column_span: target.cell.column_span || 1 };
     }
     dragSource.cell = { row, column: col,
       row_span: dragSource.cell.row_span || 1, column_span: dragSource.cell.column_span || 1 };
-
     const moved = dragSource.id;
     dragSource = null;
     selected = moved;
-    renderGrid(); renderEditor();
-    await saveProfile();
+    renderBoard();
+    await save();
   });
 }
 
-// ── layout: the inspector ─────────────────────────────────────────────────
-function populateActionSelect() {
-  const sel = document.getElementById("b-action");
-  sel.innerHTML = actions.map(a =>
-    "<option value='" + esc(a.type) + "'>" + esc(a.type) + (a.scope ? "   [" + a.scope + "]" : "") + "</option>").join("");
+// ── "what should this square do?" ─────────────────────────────────────────
+const WHAT = [
+  { t: "Play a sound", d: "A soundboard pad. Press it and the sound comes out of this computer.",
+    action: "sound.play", icon: "🔊",
+    svg: "<path d='M9 18V6l10-2v12'/><circle cx='6' cy='18' r='3'/><circle cx='19' cy='16' r='3'/>" },
+  { t: "Press keys", d: "Sends a keyboard shortcut, such as Ctrl+C.",
+    action: "keyboard.shortcut", icon: "⌨️",
+    svg: "<rect x='2' y='6' width='20' height='12' rx='2'/><path d='M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8'/>" },
+  { t: "Type text", d: "Types a piece of text wherever the cursor is.",
+    action: "keyboard.text", icon: "📝",
+    svg: "<path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'/>" },
+  { t: "Open a program", d: "Starts an app on this computer.",
+    action: "launch_application", icon: "🚀",
+    svg: "<rect x='3' y='3' width='18' height='18' rx='2'/><path d='M9 9h6v6H9z'/>" },
+  { t: "Open a terminal", d: "Opens a command prompt window.",
+    action: "open_terminal", icon: "🖥️",
+    svg: "<rect x='2' y='4' width='20' height='16' rx='2'/><path d='M7 9l3 3-3 3M13 15h4'/>" },
+  { t: "Open a link", d: "Opens a web address in the browser.",
+    action: "open_url", icon: "🌐",
+    svg: "<circle cx='12' cy='12' r='9'/><path d='M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18'/>" },
+  { t: "Open a folder", d: "Opens a folder in the file manager.",
+    action: "open_folder", icon: "📁",
+    svg: "<path d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/>" },
+  { t: "Play or pause music", d: "Controls whatever is playing on this computer.",
+    action: "media.play_pause", icon: "🎵",
+    svg: "<path d='M8 5v14l11-7z'/>" },
+  { t: "Next track", d: "Skips to the next song.", action: "media.next", icon: "⏭",
+    svg: "<path d='M5 4l10 8-10 8zM19 5v14'/>" },
+  { t: "Volume up", d: "Turns the computer's volume up.", action: "volume.up", icon: "🔊",
+    svg: "<path d='M11 5L6 9H2v6h4l5 4zM15 9a4 4 0 0 1 0 6'/>" },
+  { t: "Volume down", d: "Turns the computer's volume down.", action: "volume.down", icon: "🔉",
+    svg: "<path d='M11 5L6 9H2v6h4l5 4zM15 12h6'/>" },
+  { t: "Mute", d: "Silences the computer.", action: "volume.mute", icon: "🔇",
+    svg: "<path d='M11 5L6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6'/>" },
+  { t: "Lock the computer", d: "Locks the screen so nobody else can use it.", action: "system.lock", icon: "🔒",
+    svg: "<rect x='4' y='11' width='16' height='10' rx='2'/><path d='M8 11V7a4 4 0 0 1 8 0v4'/>" },
+  { t: "Switch board", d: "Opens another board you have made.", action: "deck.change_profile", icon: "🗂",
+    svg: "<rect x='3' y='3' width='18' height='18' rx='2'/><path d='M3 9h18'/>" },
+  { t: "Open another screen", d: "Jumps to another screen of this board.", action: "deck.open_page", icon: "📄",
+    svg: "<path d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/><path d='M14 3v6h6'/>" },
+  { t: "Go back", d: "Returns to the previous screen.", action: "deck.back", icon: "↩",
+    svg: "<path d='M9 14L4 9l5-5'/><path d='M4 9h11a5 5 0 0 1 0 10h-3'/>" },
+  { t: "Show a message", d: "Shows a short message on the phone.", action: "deck.notify", icon: "💬",
+    svg: "<path d='M21 12a8 8 0 0 1-8 8H7l-4 3v-7a8 8 0 1 1 18-4z'/>" },
+  { t: "Run a script", d: "Runs a file on this computer. Needs permission.", action: "run_script", icon: "⚙️",
+    svg: "<path d='M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14z'/><path d='M12 8v4l2 2'/>" },
+  { t: "Something else", d: "Any of the other actions this computer offers.", action: "", icon: "•",
+    svg: "<circle cx='12' cy='12' r='9'/><path d='M12 8v.01M11 12h1v4h1'/>" },
+];
+
+function openWhat(row, col) {
+  pendingCell = { row, col };
+  document.getElementById("what-title").textContent =
+    row == null ? "What should this square do?" : "What should this square do?";
+  const el = document.getElementById("what-choices");
+  el.innerHTML = WHAT.map((w, i) =>
+    "<button class='choice' data-i='" + i + "'>" +
+      "<span class='t'><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8'>" + w.svg + "</svg>" +
+      esc(w.t) + "</span><span class='d'>" + esc(w.d) + "</span></button>").join("");
+
+  el.querySelectorAll(".choice").forEach(btn => {
+    btn.onclick = () => {
+      const w = WHAT[Number(btn.dataset.i)];
+      if (w.action) chooseWhat(w, row, col);
+      else closeWhat(), openAdvancedPicker(row, col);
+    };
+  });
+  document.getElementById("what-extra").innerHTML = "";
+  document.getElementById("what-scrim").classList.add("open");
+}
+let pendingCell = null;
+
+function closeWhat() { document.getElementById("what-scrim").classList.remove("open"); }
+
+async function chooseWhat(w, row, col) {
+  closeWhat();
+  let params = {};
+  if (w.action === "deck.change_profile") {
+    const other = boards.filter(b => b.id !== board.id);
+    if (!other.length) { toast("You only have one board, so there is nothing to switch to.", "warn"); return; }
+    const pick = prompt("Switch to which board?\n\n" + other.map(b => b.id).join("\n"), other[0].id);
+    if (!pick) return;
+    params = { profile_id: pick };
+  }
+  if (w.action === "deck.open_page") {
+    const pick = prompt("Open which screen?\n\n" + board.pages.map(p => p.id).join("\n"), board.pages[0].id);
+    if (!pick) return;
+    params = { page_id: pick };
+  }
+  if (w.action === "keyboard.text") {
+    const text = prompt("What text should it type?", "");
+    if (text == null) return;
+    params = { text: text };
+  }
+  if (w.action === "keyboard.shortcut") {
+    const keys = prompt("Which keys? Write them with + between them.\n\nExamples: CTRL+C   CTRL+SHIFT+P   ALT+TAB", "CTRL+C");
+    if (!keys) return;
+    params = { keys: keys.split("+").map(s => s.trim().toUpperCase()).filter(Boolean) };
+  }
+  if (w.action === "open_url") {
+    const url = prompt("Which web address?", "https://");
+    if (!url) return;
+    params = { url: url };
+  }
+  if (w.action === "launch_application") {
+    const target = prompt("Which program?\n\nWindows example: notepad.exe\nLinux example: gedit", "");
+    if (!target) return;
+    params = { target };
+  }
+  if (w.action === "open_folder") {
+    const path = prompt("Which folder?", "");
+    if (!path) return;
+    params = { path };
+  }
+  if (w.action === "deck.notify") {
+    const msg = prompt("What should the message say?", "Hello");
+    if (!msg) return;
+    params = { message: msg, level: "info" };
+  }
+  if (row != null) await addSquare(row, col, w.action, params, w);
+  else await setActionOnSelected(w.action, params, w);
 }
 
-function renderEditor() {
-  const p = page();
-  const b = p && (p.buttons || []).find(x => x.id === selected);
-  document.getElementById("editor-empty").style.display = b ? "none" : "block";
-  document.getElementById("editor").style.display = b ? "block" : "none";
-  document.getElementById("inspector-id").textContent = b ? b.id : "";
+// The full registry, for anyone who wants an action the friendly list omits.
+function openAdvancedPicker(row, col) {
+  const list = actions.map(a => a.type).join("\n");
+  const pick = prompt("Which action? Type one of these:\n\n" + list, actions.length ? actions[0].type : "");
+  if (!pick) return;
+  const known = actions.some(a => a.type === pick.trim());
+  if (!known) { toast("“" + pick + "” is not one of this computer's actions.", "err"); return; }
+  const a = actions.find(x => x.type === pick.trim());
+  let params = {};
+  if (a && a.example) { try { params = JSON.parse(a.example); } catch (_) {} }
+  if (row != null) addSquare(row, col, pick.trim(), params);
+  else setActionOnSelected(pick.trim(), params);
+}
+
+// ── add, edit, save ───────────────────────────────────────────────────────
+const ACTION_ICON = {};
+WHAT.forEach(w => { if (w.action) ACTION_ICON[w.action] = w.icon; });
+
+async function addSquare(row, col, actionType, params, w) {
+  const s = screen();
+  if (!s) return;
+  const a = actions.find(x => x.type === actionType);
+  const label = (w && w.t) || actionType.split(".").pop().replace(/_/g, " ");
+  const b = {
+    // The id must be unique across the board: every lookup here searches by id,
+    // so two squares sharing one would silently overwrite each other. It also
+    // has to satisfy the host's identifier rules (letters, digits, . - _).
+    id: (actionType.split(".").pop().replace(/[^A-Za-z0-9]/g, "") + "_" +
+         Math.random().toString(36).slice(2, 8)).slice(0, 48),
+    label: actionType === "sound.play" && params.file ? titleCase(params.file) : label,
+    icon: { type: "emoji", value: (w && w.icon) || ACTION_ICON[actionType] || "·" },
+    cell: { row, column: col, row_span: 1, column_span: 1 },
+    state: { type: "momentary" },
+    on_press: { type: actionType, params: params || (a && a.example ? safeJSON(a.example) : {}) },
+  };
+  s.buttons = s.buttons || [];
+  s.buttons.push(b);
+  selected = b.id;
+  renderBoard();
+  await save();
+  return b;
+}
+
+function safeJSON(s) { try { return JSON.parse(s); } catch (_) { return {}; } }
+function titleCase(s) {
+  return String(s).replace(/[-_]+/g, " ").replace(/\.[a-z0-9]+$/i, "")
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+async function setActionOnSelected(actionType, params, w) {
+  const s = screen();
+  const b = s && (s.buttons || []).find(x => x.id === selected);
   if (!b) return;
+  b.on_press = { type: actionType, params: params || {} };
+  if (w) {
+    b.label = b.label && b.label !== "New square" ? b.label : w.t;
+    if (!b.icon || b.icon.value === "·") b.icon = { type: "emoji", value: w.icon };
+  }
+  renderBoard();
+  renderEditFields();
+  await save();
+  toast("Updated", "ok");
+}
 
-  document.getElementById("b-label").value = b.label || "";
-  const ic = b.icon || {};
-  document.getElementById("b-icon").value = ic.type === "image" ? ic.value : (ic.value || "");
-  renderIconPreview(ic);
-  const c = b.cell || {};
-  document.getElementById("b-row").value = c.row || 0;
-  document.getElementById("b-col").value = c.column || 0;
-  document.getElementById("b-cspan").value = c.column_span || 1;
-  document.getElementById("b-rspan").value = c.row_span || 1;
-  document.getElementById("b-action").value = (b.on_press && b.on_press.type) || "";
-  onActionChange();
-  document.getElementById("b-params").value =
-    b.on_press && b.on_press.params ? JSON.stringify(b.on_press.params, null, 2) : "{}";
+async function save() {
+  if (!board) return;
+  document.getElementById("save-pill").textContent = "Saving…";
+  try {
+    board = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(board.id) + "/document", board);
+    document.getElementById("save-pill").textContent = "Saved";
+    document.getElementById("save-pill").className = "pill ok";
+    renderBoard();
+    loadBoardsQuietly();
+  } catch (e) {
+    document.getElementById("save-pill").textContent = "Not saved";
+    document.getElementById("save-pill").className = "pill err";
+    toast("Could not save: " + e.message, "err");
+    try {
+      board = await api("GET", "/api/v1/admin/profiles/" + encodeURIComponent(board.id) + "/document");
+      if (!board.pages.some(p => p.id === screenID)) screenID = board.root_page;
+      renderScreens(); renderBoard();
+    } catch (_) {}
+  }
+}
 
-  const st = (b.state && b.state.type) || "momentary";
-  document.getElementById("b-state").value = st;
-  document.getElementById("b-group").value = (b.state && b.state.group) || "";
-  document.getElementById("b-metric").value = (b.state && b.state.metric) || "";
-  document.getElementById("b-format").value = (b.state && b.state.format) || "";
-  onStateChange();
+async function loadBoardsQuietly() {
+  try {
+    const data = await api("GET", "/api/v1/admin/profiles");
+    boards = data.profiles || [];
+    const sel = document.getElementById("board-select");
+    const keep = sel.value;
+    sel.innerHTML = boards.map(b => "<option value='" + esc(b.id) + "'>" + esc(b.name) + "</option>").join("");
+    sel.value = keep;
+  } catch (_) {}
+}
+
+// ── edit dialog ───────────────────────────────────────────────────────────
+function openEdit(id) {
+  selected = id;
+  renderBoard();
+  renderEditFields();
+  document.getElementById("edit-scrim").classList.add("open");
+}
+function closeEdit() { document.getElementById("edit-scrim").classList.remove("open"); }
+
+function renderEditFields() {
+  const s = screen();
+  const b = s && (s.buttons || []).find(x => x.id === selected);
+  if (!b) { closeEdit(); return; }
+  document.getElementById("edit-title").textContent = b.label || b.id;
+  document.getElementById("e-label").value = b.label || "";
+  document.getElementById("e-icon").value = (b.icon && b.icon.value) || "";
+  renderIconPreview(b.icon || {});
+  document.getElementById("e-action").textContent = shortAction(b);
+  document.getElementById("e-params").value = JSON.stringify((b.on_press && b.on_press.params) || {}, null, 2);
+  document.getElementById("e-row").value = b.cell.row || 0;
+  document.getElementById("e-col").value = b.cell.column || 0;
+  document.getElementById("e-cspan").value = b.cell.column_span || 1;
+  document.getElementById("e-rspan").value = b.cell.row_span || 1;
+  document.getElementById("e-size").textContent = (b.cell.column_span || 1) + " × " + (b.cell.row_span || 1);
 }
 
 function renderIconPreview(ic) {
-  const el = document.getElementById("icon-preview");
-  if (!ic || !ic.value || ic.type === "none") {
-    el.textContent = "no icon";
-    return;
-  }
+  const el = document.getElementById("e-icon-preview");
+  if (!ic.value) { el.textContent = "no icon"; return; }
   if (ic.type === "image") {
-    const uri = (current.icons || {})[ic.value];
-    el.innerHTML = uri
-      ? "<img src='" + uri + "' style='width:18px;height:18px;vertical-align:middle;margin-right:6px' alt=''>" + esc(ic.value)
-      : esc(ic.value) + "  (not cached on the host yet)";
+    const uri = (board.icons || {})[ic.value];
+    el.innerHTML = uri ? "<img src='" + uri + "' style='width:16px;height:16px;vertical-align:middle;margin-right:6px'>" + esc(ic.value)
+                       : esc(ic.value) + " (not on this computer yet)";
   } else {
     el.textContent = ic.value;
   }
 }
 
-function onActionChange() {
-  const t = document.getElementById("b-action").value;
-  const a = actions.find(x => x.type === t);
-  const risky = ["scripts", "system.power"];
-  const el = document.getElementById("b-scope");
-  el.textContent = a && a.scope ? "requires the " + a.scope + " scope" : "no scope required";
-  el.className = "pill" + (a && risky.includes(a.scope) ? " warn" : "");
-}
-
-function onStateChange() {
-  const st = document.getElementById("b-state").value;
-  document.getElementById("b-telemetry").style.display = st === "telemetry" ? "block" : "none";
-  document.getElementById("b-group-wrap").style.display = st === "radio" ? "block" : "none";
-}
-
-function fillExample() {
-  const a = actions.find(x => x.type === document.getElementById("b-action").value);
-  if (a && a.example) {
-    document.getElementById("b-params").value = a.example;
-    markDirty();
-  }
-}
-
-function clearIcon() {
-  document.getElementById("b-icon").value = "";
-  renderIconPreview({ type: "none", value: "" });
-  markDirty();
-}
-
-async function createButtonAt(row, col, type) {
-  const p = page();
-  if (!p) return;
-  const action = type || (actions.length ? actions[0].type : "noop");
-  const a = actions.find(x => x.type === action);
-  const b = {
-    id: "btn_" + Math.random().toString(36).slice(2, 8),
-    label: action.split(".").pop().replace(/_/g, " "),
-    icon: { type: "emoji", value: "·" },
-    cell: { row, column: col, row_span: 1, column_span: 1 },
-    state: { type: "momentary" },
-    on_press: { type: action, params: a && a.example ? JSON.parse(a.example) : {} },
-  };
-  p.buttons = p.buttons || [];
-  p.buttons.push(b);
-  selected = b.id;
-  renderGrid(); renderEditor();
-  await saveProfile();
-}
-
-async function saveButton() {
-  const p = page();
-  const b = (p.buttons || []).find(x => x.id === selected);
+async function saveSquare() {
+  const s = screen();
+  const b = (s.buttons || []).find(x => x.id === selected);
   if (!b) return;
+  const ta = document.getElementById("e-params");
+  let params;
+  try { params = JSON.parse(ta.value || "{}"); ta.classList.remove("bad"); }
+  catch (e) { ta.classList.add("bad"); toast("The options are not valid JSON: " + e.message, "err"); return; }
 
-  const ta = document.getElementById("b-params");
-  let params = {};
-  try {
-    params = JSON.parse(ta.value || "{}");
-    ta.classList.remove("bad");
-  } catch (e) {
-    ta.classList.add("bad");
-    toast("Parameters are not valid JSON: " + e.message, "err");
-    return;
-  }
-
-  const iconVal = document.getElementById("b-icon").value.trim();
-  const looksLikeImage = /\.(png|jpg|jpeg|webp|gif)$/i.test(iconVal);
-  b.label = document.getElementById("b-label").value;
-  b.icon = !iconVal
-    ? { type: "none" }
-    : looksLikeImage
-      ? { type: "image", value: iconVal }
-      : (/^[\x20-\x7E]+$/.test(iconVal) && iconVal.length > 2
-          ? { type: "material", value: iconVal }
-          : { type: "emoji", value: iconVal });
+  b.label = document.getElementById("e-label").value || b.label;
+  const iconVal = document.getElementById("e-icon").value.trim();
+  b.icon = !iconVal ? { type: "none" }
+    : /\.(png|jpe?g|webp|gif)$/i.test(iconVal) ? { type: "image", value: iconVal }
+    : (/^[\x20-\x7E]+$/.test(iconVal) && iconVal.length > 2 ? { type: "material", value: iconVal }
+                                                            : { type: "emoji", value: iconVal });
+  b.on_press.params = params;
   b.cell = {
-    row: Number(document.getElementById("b-row").value) || 0,
-    column: Number(document.getElementById("b-col").value) || 0,
-    row_span: Number(document.getElementById("b-rspan").value) || 1,
-    column_span: Number(document.getElementById("b-cspan").value) || 1,
+    row: Number(document.getElementById("e-row").value) || 0,
+    column: Number(document.getElementById("e-col").value) || 0,
+    row_span: Math.max(1, Number(document.getElementById("e-rspan").value) || 1),
+    column_span: Math.max(1, Number(document.getElementById("e-cspan").value) || 1),
   };
-  b.on_press = { type: document.getElementById("b-action").value, params };
-
-  const st = document.getElementById("b-state").value;
-  b.state = { type: st };
-  if (st === "radio") b.state.group = document.getElementById("b-group").value.trim() || "g";
-  if (st === "telemetry") {
-    b.state.metric = document.getElementById("b-metric").value.trim();
-    b.state.format = document.getElementById("b-format").value.trim() || "{value:.0f}%";
-    if (!b.state.metric) { toast("A telemetry button needs a metric.", "err"); return; }
-  }
-
-  dirty = false;
-  await saveProfile();
+  closeEdit();
+  renderBoard();
+  await save();
+  toast("Saved", "ok");
 }
 
-async function deleteButton() {
-  const p = page();
-  if (!p || !selected) return;
-  p.buttons = (p.buttons || []).filter(x => x.id !== selected);
+async function resize(dw, dh) {
+  const s = screen();
+  const b = (s.buttons || []).find(x => x.id === selected);
+  if (!b) return;
+  const g = grid();
+  const w = Math.max(1, Math.min(g.columns - b.cell.column, (b.cell.column_span || 1) + dw));
+  const h = Math.max(1, Math.min(g.rows - b.cell.row, (b.cell.row_span || 1) + dh));
+  b.cell.column_span = w;
+  b.cell.row_span = h;
+  renderEditFields();
+  renderBoard();
+  await save();
+}
+
+async function deleteSquare() {
+  const s = screen();
+  if (!s || !selected) return;
+  if (!confirm("Delete this square?")) return;
+  s.buttons = (s.buttons || []).filter(x => x.id !== selected);
   selected = null;
-  renderGrid(); renderEditor();
-  await saveProfile();
+  closeEdit();
+  renderBoard();
+  await save();
 }
 
-async function addPage() {
-  const name = document.getElementById("new-page-name").value.trim();
-  if (!name) { toast("Give the page a name.", "err"); return; }
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page";
-  if (current.pages.some(p => p.id === id)) { toast("A page with that id already exists.", "err"); return; }
-  current.pages.push({ id, name, buttons: [] });
-  currentPage = id;
-  document.getElementById("new-page-name").value = "";
-  renderPageTabs(); renderGrid(); renderEditor();
-  await saveProfile();
-}
-
-async function deletePage() {
-  if (current.pages.length <= 1) { toast("A profile must keep at least one page.", "err"); return; }
-  if (currentPage === current.root_page) { toast("The root page cannot be deleted. Make another page root first.", "err"); return; }
-  if (!confirm("Delete page “" + page().name + "” and its buttons?")) return;
-  current.pages = current.pages.filter(p => p.id !== currentPage);
-  currentPage = current.pages[0].id;
-  renderPageTabs(); renderGrid(); renderEditor();
-  await saveProfile();
-}
-
-async function setRootPage() {
-  current.root_page = currentPage;
-  renderPageTabs();
-  await saveProfile();
-}
-
-async function applyGrid() {
-  const cols = Math.max(1, Math.min(16, Number(document.getElementById("grid-cols").value) || 4));
-  const rows = Math.max(1, Math.min(16, Number(document.getElementById("grid-rows").value) || 5));
-  current.settings = current.settings || {};
-  current.settings.grid = { columns: cols, rows: rows };
-  renderGrid();
-  await saveProfile();
-}
-
-async function saveProfile() {
-  const id = current.id;
-  const btn = document.getElementById("save-btn");
-  btn.disabled = true;
-  try {
-    current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document", current);
-    dirty = false;
-    document.getElementById("save-state").textContent = "Saved. Connected phones updated.";
-    renderGrid(); renderEditor();
-    loadProfilesQuietly();
-  } catch (e) {
-    toast("Not saved: " + e.message, "err");
-    // Reload the document the host actually holds.
-    //
-    // Without this the panel keeps showing the edit that was just refused, and
-    // every later save fails for the same reason: the local copy is the invalid
-    // one. A refused drag would leave the grid permanently unsaveable.
-    try {
-      current = await api("GET", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document");
-      if (!current.pages.some(p => p.id === currentPage)) {
-        currentPage = current.root_page || (current.pages[0] && current.pages[0].id);
-      }
-      selected = null;
-      renderPageTabs(); renderGrid(); renderEditor();
-    } catch (_) {}
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function loadProfilesQuietly() {
-  try {
-    const data = await api("GET", "/api/v1/admin/profiles");
-    profiles = data.profiles || [];
-    const sel = document.getElementById("profile-select");
-    const keep = sel.value;
-    sel.innerHTML = profiles.map(p =>
-      "<option value='" + esc(p.id) + "'>" + esc(p.name) + "  (" + esc(p.id) + ")</option>").join("");
-    sel.value = keep;
-    document.getElementById("revision-pill").textContent =
-      (profiles.find(p => p.id === keep) || {}).revision || "";
-  } catch (_) {}
-}
-
-async function newProfile() {
-  const id = prompt("New profile id (letters, digits, - and _):");
-  if (!id) return;
-  if (!/^[A-Za-z0-9._-]+$/.test(id)) { toast("That id has characters the host will reject.", "err"); return; }
-  const doc = {
-    schema: 1, id, name: id,
-    icon: { type: "emoji", value: "🎛" },
-    settings: { grid: { columns: 4, rows: 4 }, haptic: true,
-      nav: { breadcrumb: true, back_button: true, page_tabs: true } },
-    root_page: "home",
-    pages: [{ id: "home", name: "Home", buttons: [
-      { id: "hello", label: "Hello", icon: { type: "emoji", value: "👋" },
-        cell: { row: 0, column: 0 }, state: { type: "momentary" },
-        on_press: { type: "deck.notify", params: { message: "hello", level: "info" } } },
-    ]}],
-  };
-  try {
-    await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document", doc);
-    toast("Created " + id, "ok");
-    current = null; dirty = false;
-    await loadProfiles();
-    await selectProfile(id);
-  } catch (e) { toast(e.message, "err"); }
-}
-
-async function exportProfile() {
-  const json = JSON.stringify(current, null, 2);
-  try {
-    await navigator.clipboard.writeText(json);
-    toast("The profile JSON is on your clipboard.", "ok");
-  } catch (_) {
-    const w = window.open("", "_blank");
-    w.document.write("<pre>" + esc(json) + "</pre>");
-  }
-}
-
-async function importProfile() {
-  const text = prompt("Paste a profile JSON document:");
-  if (!text) return;
-  try {
-    const doc = JSON.parse(text);
-    await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(doc.id) + "/document", doc);
-    toast("Imported " + doc.id, "ok");
-    current = null; dirty = false;
-    await loadProfiles();
-    await selectProfile(doc.id);
-  } catch (e) { toast("Import failed: " + e.message, "err"); }
-}
+document.getElementById("e-icon").addEventListener("input", e =>
+  renderIconPreview({ type: /\.(png|jpe?g|webp|gif)$/i.test(e.target.value) ? "image" : "emoji", value: e.target.value }));
 
 // ── icon picker ───────────────────────────────────────────────────────────
-let iconSetsLoaded = false;
-let searchTimer = null;
-
+let iconSetsLoaded = false, searchTimer = null;
 async function openIconPicker() {
   document.getElementById("icon-scrim").classList.add("open");
-  if (!iconSetsLoaded) {
-    try {
-      const data = await api("GET", "/api/v1/admin/icons");
-      const sel = document.getElementById("icon-set");
-      if (!data.available) {
-        sel.innerHTML = "<option>unavailable</option>";
-        document.getElementById("icon-results").innerHTML =
-          "<div class='hint'>This host has no icon cache configured.</div>";
-        return;
-      }
-      sel.innerHTML = (data.sets || []).map(s =>
-        "<option value='" + esc(s.id) + "' data-licence='" + esc(s.licence) + "'>" +
-        esc(s.name) + "  (" + esc(s.licence) + ")</option>").join("");
-      iconSetsLoaded = true;
-      onIconSetChange();
-    } catch (e) { toast(e.message, "err"); return; }
-  }
-  document.getElementById("icon-query").focus();
+  if (iconSetsLoaded) return;
+  try {
+    const data = await api("GET", "/api/v1/admin/icons");
+    const sel = document.getElementById("icon-set");
+    if (!data.available) {
+      sel.innerHTML = "<option>none</option>";
+      document.getElementById("icon-results").innerHTML =
+        "<div class='hint'>This computer has no icon library set up.</div>";
+      return;
+    }
+    sel.innerHTML = (data.sets || []).map(s =>
+      "<option value='" + esc(s.id) + "' data-licence='" + esc(s.licence) + "'>" +
+      esc(s.name) + "</option>").join("");
+    iconSetsLoaded = true;
+    onIconSetChange();
+  } catch (e) { toast(e.message, "err"); }
 }
-
-function closeIconPicker() {
-  document.getElementById("icon-scrim").classList.remove("open");
-}
-
+function closeIconPicker() { document.getElementById("icon-scrim").classList.remove("open"); }
 function onIconSetChange() {
   const sel = document.getElementById("icon-set");
-  const opt = sel.options[sel.selectedIndex];
-  document.getElementById("icon-licence").textContent = opt ? opt.dataset.licence || "" : "";
+  const o = sel.options[sel.selectedIndex];
+  document.getElementById("icon-licence").textContent = o ? (o.dataset.licence || "") : "";
 }
-
-document.getElementById("icon-set").addEventListener("change", onIconSetChange);
-
-function debouncedSearch() {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(searchIcons, 260);
-}
+function debouncedSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(searchIcons, 260); }
 
 async function searchIcons() {
   const set = document.getElementById("icon-set").value;
   const q = document.getElementById("icon-query").value.trim();
   const results = document.getElementById("icon-results");
-
-  // A skeleton row, so the panel does not look frozen while the catalogue is
-  // fetched on the first search.
   results.innerHTML = Array.from({ length: 12 }, () => "<div class='icon-cell skeleton'></div>").join("");
-
   try {
-    const data = await api("GET",
-      "/api/v1/admin/icons/search?set=" + encodeURIComponent(set) +
+    const data = await api("GET", "/api/v1/admin/icons/search?set=" + encodeURIComponent(set) +
       "&limit=48&q=" + encodeURIComponent(q));
     if (!data.icons || !data.icons.length) {
-      results.innerHTML = "<div class='hint'>No icon matches “" + esc(q) + "”.</div>";
+      results.innerHTML = "<div class='hint'>Nothing matches “" + esc(q) + "”.</div>";
       return;
     }
     const cached = new Set(data.cached || []);
     results.innerHTML = data.icons.map(n =>
       "<div class='icon-cell' data-name='" + esc(n) + "'>" +
         "<div class='ico' style='height:30px'></div>" +
-        "<div class='n'>" + esc(n) + (cached.has(n) ? " ✓" : "") + "</div>" +
-      "</div>").join("");
-
-    // Preview lazily: each cell asks the host for the rasterised PNG, which is
-    // cached on disk after the first time. Loading all 48 at once would be 48
-    // requests; they are issued in order and each one is cheap after the first.
+        "<div class='n'>" + esc(n) + (cached.has(n) ? " ✓" : "") + "</div></div>").join("");
     for (const cell of results.querySelectorAll(".icon-cell")) {
       const name = cell.dataset.name;
-      cell.onclick = () => chooseIcon(name);
+      cell.onclick = () => useIcon(name, set);
       try {
-        const pv = await api("GET",
-          "/api/v1/admin/icons/" + encodeURIComponent(name) + "/preview?set=" + encodeURIComponent(set));
+        const pv = await api("GET", "/api/v1/admin/icons/" + encodeURIComponent(name) + "/preview?set=" + encodeURIComponent(set));
         cell.querySelector(".ico").innerHTML = "<img src='" + pv.data_uri + "' alt=''>";
-      } catch (_) {
-        cell.querySelector(".ico").textContent = "?";
-      }
+      } catch (_) { cell.querySelector(".ico").textContent = "?"; }
     }
-  } catch (e) {
-    results.innerHTML = "<div class='hint'>" + esc(e.message) + "</div>";
-  }
+  } catch (e) { results.innerHTML = "<div class='hint'>" + esc(e.message) + "</div>"; }
 }
 
-function chooseIcon(name) {
-  const set = document.getElementById("icon-set").value;
-  // The stored file name is what the profile references; the host derives it the
-  // same way, so the panel asks for the preview once more to learn it rather
-  // than duplicating the naming rule here.
-  api("GET", "/api/v1/admin/icons/" + encodeURIComponent(name) + "/preview?set=" + encodeURIComponent(set))
-    .then(pv => {
-      document.getElementById("b-icon").value = pv.file_name;
-      current.icons = current.icons || {};
-      current.icons[pv.file_name] = pv.data_uri;
-      renderIconPreview({ type: "image", value: pv.file_name });
-      markDirty();
-      closeIconPicker();
-      toast("Icon ready. Press Save button to apply it.", "ok");
-    })
-    .catch(e => toast(e.message, "err"));
+async function useIcon(name, set) {
+  try {
+    const pv = await api("GET", "/api/v1/admin/icons/" + encodeURIComponent(name) + "/preview?set=" + encodeURIComponent(set));
+    document.getElementById("e-icon").value = pv.file_name;
+    board.icons = board.icons || {};
+    board.icons[pv.file_name] = pv.data_uri;
+    renderIconPreview({ type: "image", value: pv.file_name });
+    closeIconPicker();
+    toast("Icon ready. Press Done on the square to apply it.", "ok");
+  } catch (e) { toast(e.message, "err"); }
 }
 
-async function importIcon() {
+async function uploadIcon() {
   const name = document.getElementById("icon-import-name").value.trim();
   const file = document.getElementById("icon-file").files[0];
   if (!name) { toast("Give the image a name.", "err"); return; }
   if (!file) { toast("Choose a file.", "err"); return; }
-
-  const buf = await file.arrayBuffer();
-  let binary = "";
-  const bytes = new Uint8Array(buf);
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  const b64 = btoa(binary);
-
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
   try {
-    const res = await api("POST", "/api/v1/admin/icons/import", { name, data: b64 });
-    document.getElementById("b-icon").value = res.file_name;
-    current.icons = current.icons || {};
-    current.icons[res.file_name] = res.data_uri;
+    const res = await api("POST", "/api/v1/admin/icons/import", { name, data: btoa(bin) });
+    document.getElementById("e-icon").value = res.file_name;
+    board.icons = board.icons || {};
+    board.icons[res.file_name] = res.data_uri;
     renderIconPreview({ type: "image", value: res.file_name });
-    markDirty();
     closeIconPicker();
-    toast("Image imported. Press Save button to apply it.", "ok");
+    toast("Image ready. Press Done on the square to apply it.", "ok");
   } catch (e) { toast(e.message, "err"); }
+}
+
+// ── phones ────────────────────────────────────────────────────────────────
+const PLAIN = {
+  keyboard: "press keys", mouse: "move the mouse", media: "control music",
+  apps: "open programs", scripts: "run scripts", "system.read": "see system info",
+  "system.power": "shut down or restart", "profiles.write": "edit boards", plugins: "use add-ons",
+};
+async function loadPhones() {
+  try {
+    const data = await api("GET", "/api/v1/admin/devices");
+    const body = document.getElementById("phones-body");
+    const list = data.devices || [];
+    if (!list.length) {
+      body.innerHTML = "<tr><td colspan='4'><div class='empty-state'><h3>No phones yet</h3>" +
+        "<p>Use “Connect a phone” to add one.</p></div></td></tr>";
+      return;
+    }
+    body.innerHTML = "";
+    for (const d of list) {
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td><strong>" + esc(d.name) + "</strong></td>" +
+        "<td>" + esc((d.scopes || []).map(s => PLAIN[s] || s).join(", ")) + "</td>" +
+        "<td>" + (d.disabled ? "<span class='pill err'>turned off</span>"
+          : d.connected ? "<span class='pill ok'>connected</span>" : "<span class='pill'>not here</span>") + "</td>";
+      const td = document.createElement("td");
+      td.className = "row tight";
+      td.style.justifyContent = "flex-end";
+      td.innerHTML = "<button class='btn ghost sm' data-a='perm'>What it may do</button>" +
+        "<button class='btn ghost sm' data-a='off'>" + (d.disabled ? "Turn on" : "Turn off") + "</button>" +
+        "<button class='btn danger sm' data-a='forget'>Forget</button>";
+      td.querySelector("[data-a=perm]").onclick = () => editPermissions(d);
+      td.querySelector("[data-a=off]").onclick = () => togglePhone(d);
+      td.querySelector("[data-a=forget]").onclick = () => forgetPhone(d);
+      tr.appendChild(td);
+      body.appendChild(tr);
+    }
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function editPermissions(d) {
+  const current = (d.scopes || []).map(s => PLAIN[s] || s);
+  const want = prompt(
+    "What may “" + d.name + "” do?\n\n" +
+    "Write a comma separated list. The choices are:\n" +
+    Object.values(PLAIN).join(", ") + "\n\n" +
+    "“run scripts” and “shut down or restart” are risky: only give them to a phone you trust.",
+    current.join(", "));
+  if (want === null) return;
+  const back = {};
+  for (const [k, v] of Object.entries(PLAIN)) back[v] = k;
+  const scopes = want.split(",").map(s => s.trim()).map(s => back[s] || s).filter(Boolean);
+  try {
+    await api("PUT", "/api/v1/admin/devices/" + encodeURIComponent(d.id) + "/scopes", { scopes });
+    toast("Updated", "ok");
+    loadPhones();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function togglePhone(d) {
+  try {
+    await api("PATCH", "/api/v1/admin/devices/" + encodeURIComponent(d.id), { disabled: !d.disabled });
+    loadPhones();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+async function forgetPhone(d) {
+  if (!confirm("Forget “" + d.name + "”?\n\nIt will have to be paired again. Do this for a phone you have lost.")) return;
+  try {
+    await api("DELETE", "/api/v1/admin/devices/" + encodeURIComponent(d.id));
+    toast("Forgotten", "ok");
+    loadPhones();
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ── pairing ───────────────────────────────────────────────────────────────
+async function showPin() {
+  try {
+    const r = await api("POST", "/api/v1/admin/pair", {});
+    const el = document.getElementById("pin-display");
+    el.textContent = r.pin.split("").join(" ");
+    let left = r.expires_in_s;
+    document.getElementById("pin-left").textContent = "Good for " + left + " seconds.";
+    clearInterval(el._t);
+    el._t = setInterval(() => {
+      left--;
+      if (left <= 0) {
+        clearInterval(el._t);
+        el.textContent = "";
+        document.getElementById("pin-left").textContent = "That PIN has expired. Press the button again.";
+      } else {
+        document.getElementById("pin-left").textContent = "Good for " + left + " more seconds.";
+      }
+    }, 1000);
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ── capabilities and gauges ───────────────────────────────────────────────
+async function loadCapabilities() {
+  try {
+    const info = await api("GET", "/api/v1/admin/actions");
+    actions = info.actions || [];
+  } catch (_) {}
+}
+
+function renderGauges() {
+  const el = document.getElementById("gauges");
+  if (!el) return;
+  const metrics = (status && status.metrics) || [];
+  if (!metrics.length) { el.innerHTML = "<div class='hint'>Nothing to show.</div>"; return; }
+  el.innerHTML = metrics.map(m => {
+    const v = LAST[m];
+    const pct = v == null ? 0 : Math.max(0, Math.min(100, v));
+    const cls = v == null ? "" : (pct > 90 ? "err" : pct > 75 ? "warn" : "");
+    const shown = v == null ? "--" : (m.includes("bytes") ? fmtBytes(v) : v.toFixed(0) + "%");
+    return "<div class='gauge'><div class='name'>" + esc(m) + "</div>" +
+      "<div class='val'>" + shown + "</div>" +
+      "<div class='bar " + cls + "'><i style='width:" + pct + "%'></i></div></div>";
+  }).join("");
 }
 
 // ── keyboard ──────────────────────────────────────────────────────────────
 document.addEventListener("keydown", ev => {
-  if (ev.key === "Escape") closeIconPicker();
-  // Ctrl/Cmd+S saves the profile, which is what every editor does.
-  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") {
-    ev.preventDefault();
-    if (current) saveProfile();
-  }
-  // Delete removes the selected button, but never while typing.
-  const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
-  if (!typing && (ev.key === "Delete" || ev.key === "Backspace") && selected) {
-    ev.preventDefault();
-    deleteButton();
-  }
+  if (ev.key === "Escape") { closeIconPicker(); closeWhat(); closeEdit(); }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") { ev.preventDefault(); save(); }
 });
 
 // ── boot ──────────────────────────────────────────────────────────────────
 (async function boot() {
-  for (let i = 0; i < 60 && typeof md !== "function"; i++) {
-    await new Promise(r => setTimeout(r, 100));
-  }
+  for (let i = 0; i < 60 && typeof md !== "function"; i++) await new Promise(r => setTimeout(r, 100));
   if (typeof md !== "function") {
-    toast("The host bridge did not load, so this window cannot talk to the host.", "err");
+    toast("The window could not reach the program behind it. Restart the app.", "err");
     return;
   }
-  bridgeReady = true;
+  ready = true;
   await refreshStatus();
   await loadCapabilities();
-  await loadProfiles();
-  // The gauges poll while the window is open: it is the cheapest way to show
-  // that telemetry is alive, and it stops when the window closes.
+  await loadBoards();
+  await loadSounds();
   setInterval(refreshStatus, 5000);
 })();
 </script>
