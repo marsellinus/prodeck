@@ -5,262 +5,513 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MobileDeck</title>
 <style>
-  :root {
-    --bg: #0e0e12; --panel: #16161c; --panel2: #1c1c22; --line: #2a2a33;
-    --fg: #f2f2f5; --dim: #9a9aa8; --accent: #4c8bf5;
-    --ok: #22c55e; --warn: #eab308; --err: #ef4444;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--fg);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  }
-  header {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--line);
-    position: sticky; top: 0; z-index: 10;
-  }
-  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .2px; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--err); }
-  .dot.on { background: var(--ok); }
-  .grow { flex: 1; }
-  nav { display: flex; gap: 4px; }
-  nav button {
-    background: transparent; color: var(--dim); border: 0; padding: 7px 12px;
-    border-radius: 7px; cursor: pointer; font: inherit;
-  }
-  nav button:hover { background: var(--panel2); color: var(--fg); }
-  nav button.active { background: var(--accent); color: #fff; }
-  main { padding: 18px; max-width: 1100px; margin: 0 auto; }
-  section { display: none; }
-  section.active { display: block; }
-  .card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 11px; padding: 16px; margin-bottom: 14px;
-  }
-  .card h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase;
-    letter-spacing: .6px; color: var(--dim); font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
-  th { color: var(--dim); font-weight: 500; font-size: 12px; text-transform: uppercase; }
-  tr:last-child td { border-bottom: 0; }
-  code, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
-  button.btn {
-    background: var(--accent); color: #fff; border: 0; border-radius: 7px;
-    padding: 7px 13px; cursor: pointer; font: inherit;
-  }
-  button.btn.ghost { background: var(--panel2); color: var(--fg); border: 1px solid var(--line); }
-  button.btn.danger { background: var(--err); }
-  button.btn:disabled { opacity: .45; cursor: not-allowed; }
-  input, select, textarea {
-    background: var(--bg); color: var(--fg); border: 1px solid var(--line);
-    border-radius: 7px; padding: 7px 9px; font: inherit; width: 100%;
-  }
-  textarea { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; min-height: 80px; }
-  label { display: block; color: var(--dim); font-size: 12px; margin: 8px 0 3px; }
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .pill { padding: 2px 8px; border-radius: 999px; background: var(--panel2);
-    border: 1px solid var(--line); font-size: 11.5px; color: var(--dim); }
-  .pill.ok { color: var(--ok); border-color: #14532d; }
-  .pill.warn { color: var(--warn); border-color: #713f12; }
-  .pill.err { color: var(--err); border-color: #7f1d1d; }
-  .grid { display: grid; gap: 8px; }
-  .tile {
-    aspect-ratio: 1; background: var(--panel2); border: 1px solid var(--line);
-    border-radius: 11px; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 3px; cursor: pointer; padding: 6px; text-align: center;
-    transition: transform .06s, border-color .12s;
-  }
-  .tile:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .tile.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(76,139,245,.35); }
-  .tile.empty { border-style: dashed; color: var(--dim); }
-  .tile.draggable { cursor: grab; }
-  .tile.dragging { opacity: .4; cursor: grabbing; }
-  .tile.drop-target {
-    border-color: var(--ok); border-style: solid;
-    box-shadow: 0 0 0 2px rgba(34,197,94,.35);
-  }
-  .tile.drop-swap { border-color: var(--warn); box-shadow: 0 0 0 2px rgba(234,179,8,.35); }
-  .tile .handle {
-    position: absolute; top: 3px; right: 5px; font-size: 11px; color: var(--dim);
-    opacity: 0; transition: opacity .12s;
-  }
-  .tile:hover .handle { opacity: 1; }
-  .tile { position: relative; }
-  .toolbar-hint { color: var(--dim); font-size: 12px; }
-  .tile .ico { font-size: 20px; line-height: 1; }
-  .tile .lbl { font-size: 11px; color: var(--fg); word-break: break-word; }
-  .toast {
-    position: fixed; right: 16px; bottom: 16px; background: var(--panel2);
-    border: 1px solid var(--line); border-left: 3px solid var(--accent);
-    padding: 11px 14px; border-radius: 9px; max-width: 460px; display: none; z-index: 50;
-    white-space: pre-wrap; font-size: 13px;
-  }
-  .toast.err { border-left-color: var(--err); }
-  .toast.ok { border-left-color: var(--ok); }
-  .kv { display: grid; grid-template-columns: 190px 1fr; gap: 5px 14px; }
-  .kv div:nth-child(odd) { color: var(--dim); }
-  details summary { cursor: pointer; color: var(--dim); }
+/* ── design tokens ──────────────────────────────────────────────────────────
+   Material-ish roles, so every colour has one name and a light theme is a
+   matter of redefining the block rather than hunting for hex codes. */
+:root {
+  --bg:        #0b0b0f;
+  --surface:   #131318;
+  --surface-2: #1a1a21;
+  --surface-3: #22222b;
+  --line:      #2c2c36;
+  --line-soft: #23232c;
+  --fg:        #f4f4f7;
+  --fg-dim:    #a0a0b0;
+  --fg-faint:  #6c6c7c;
+  --primary:   #5b8def;
+  --primary-d: #3f6fd8;
+  --on-primary:#ffffff;
+  --ok:        #34d399;
+  --warn:      #fbbf24;
+  --err:       #f87171;
+  --radius:    14px;
+  --radius-sm: 9px;
+  --shadow:    0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35);
+  --ease:      cubic-bezier(.2,.8,.2,1);
+}
+:root[data-theme="light"] {
+  --bg:        #f6f6f9;
+  --surface:   #ffffff;
+  --surface-2: #f1f1f6;
+  --surface-3: #e6e6ee;
+  --line:      #d9d9e3;
+  --line-soft: #e8e8ef;
+  --fg:        #17171d;
+  --fg-dim:    #5a5a68;
+  --fg-faint:  #8b8b99;
+  --primary:   #2f6bdc;
+  --primary-d: #2455b3;
+  --shadow:    0 1px 2px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.08);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 14px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--primary); color: var(--on-primary); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ── shell ──────────────────────────────────────────────────────────────── */
+.shell { display: grid; grid-template-rows: auto 1fr; height: 100%; }
+
+header {
+  display: flex; align-items: center; gap: 14px; padding: 0 18px;
+  height: 58px; background: var(--surface); border-bottom: 1px solid var(--line);
+  position: relative; z-index: 20;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: .2px; }
+.brand svg { width: 22px; height: 22px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 22%, transparent); }
+.dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+.host-chip {
+  display: flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px;
+  background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; color: var(--fg-dim);
+}
+.grow { flex: 1; }
+
+nav { display: flex; gap: 3px; background: var(--surface-2); padding: 3px; border-radius: 11px; }
+nav button {
+  display: flex; align-items: center; gap: 7px;
+  background: transparent; color: var(--fg-dim); border: 0; padding: 7px 14px;
+  border-radius: 8px; cursor: pointer; font: inherit; font-weight: 550;
+  transition: background .15s var(--ease), color .15s var(--ease);
+}
+nav button:hover { color: var(--fg); }
+nav button.active { background: var(--primary); color: var(--on-primary); box-shadow: var(--shadow); }
+nav button svg { width: 15px; height: 15px; }
+
+main { overflow: auto; padding: 22px; }
+section { display: none; max-width: 1240px; margin: 0 auto; }
+section.active { display: block; animation: fade .22s var(--ease); }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ── cards ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow);
+}
+.card > h2 {
+  font-size: 12px; margin: 0 0 14px; text-transform: uppercase;
+  letter-spacing: .8px; color: var(--fg-dim); font-weight: 650;
+  display: flex; align-items: center; gap: 8px;
+}
+.card > h2 .grow { flex: 1; }
+
+/* ── controls ───────────────────────────────────────────────────────────── */
+button.btn {
+  display: inline-flex; align-items: center; gap: 7px; justify-content: center;
+  background: var(--primary); color: var(--on-primary); border: 0; border-radius: var(--radius-sm);
+  padding: 9px 15px; cursor: pointer; font: inherit; font-weight: 570;
+  transition: background .14s var(--ease), transform .06s var(--ease);
+}
+button.btn:hover:not(:disabled) { background: var(--primary-d); }
+button.btn:active:not(:disabled) { transform: translateY(1px); }
+button.btn.ghost { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
+button.btn.ghost:hover:not(:disabled) { background: var(--surface-3); }
+button.btn.danger { background: transparent; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 45%, var(--line)); }
+button.btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 14%, transparent); }
+button.btn.sm { padding: 6px 10px; font-size: 12.5px; }
+button.btn.icon { padding: 8px; }
+button.btn:disabled { opacity: .42; cursor: not-allowed; }
+button.btn svg { width: 15px; height: 15px; }
+
+input, select, textarea {
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 9px 11px; font: inherit; width: 100%;
+  transition: border-color .14s var(--ease), box-shadow .14s var(--ease);
+}
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+input.bad, textarea.bad { border-color: var(--err); }
+textarea { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; min-height: 92px; resize: vertical; }
+label.field { display: block; margin-bottom: 10px; }
+label.field > span { display: block; color: var(--fg-dim); font-size: 12px; margin-bottom: 4px; font-weight: 550; }
+.hint { color: var(--fg-faint); font-size: 12px; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.row.tight { gap: 6px; }
+.cols { display: grid; gap: 10px; }
+
+.pill {
+  padding: 3px 9px; border-radius: 999px; background: var(--surface-3);
+  border: 1px solid var(--line); font-size: 11.5px; color: var(--fg-dim); font-weight: 550;
+}
+.pill.ok   { color: var(--ok);   border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+.pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+.pill.err  { color: var(--err);  border-color: color-mix(in srgb, var(--err) 40%, var(--line)); }
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+th { color: var(--fg-dim); font-weight: 570; font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px; }
+tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background .12s var(--ease); }
+tbody tr:hover { background: var(--surface-2); }
+
+/* ── status ─────────────────────────────────────────────────────────────── */
+.kv { display: grid; grid-template-columns: 190px 1fr; gap: 8px 16px; align-items: baseline; }
+.kv dt { color: var(--fg-dim); font-size: 13px; }
+.kv dd { margin: 0; }
+.gauges { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.gauge { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; }
+.gauge .name { color: var(--fg-dim); font-size: 11.5px; text-transform: uppercase; letter-spacing: .5px; }
+.gauge .val { font-size: 24px; font-weight: 650; margin: 3px 0 7px; font-variant-numeric: tabular-nums; }
+.bar { height: 5px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--primary); border-radius: 3px; transition: width .4s var(--ease); }
+.bar.warn > i { background: var(--warn); }
+.bar.err > i { background: var(--err); }
+
+/* ── layout editor ──────────────────────────────────────────────────────── */
+.editor { display: grid; grid-template-columns: 250px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .editor { grid-template-columns: 1fr; } }
+
+.palette { position: sticky; top: 0; }
+.palette-list { display: flex; flex-direction: column; gap: 5px; max-height: 420px; overflow: auto; margin-top: 8px; }
+.palette-item {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--line-soft); cursor: grab;
+  font-size: 12.5px; transition: border-color .12s var(--ease), transform .06s var(--ease);
+}
+.palette-item:hover { border-color: var(--primary); }
+.palette-item:active { cursor: grabbing; transform: scale(.98); }
+.palette-item .type { color: var(--fg-faint); font-size: 11px; }
+.palette-item .scope { margin-left: auto; font-size: 10.5px; color: var(--fg-faint); }
+.palette-item.risk { border-color: color-mix(in srgb, var(--warn) 35%, var(--line-soft)); }
+
+.canvas { min-width: 0; }
+.grid { display: grid; gap: 10px; }
+.tile {
+  position: relative; aspect-ratio: 1; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; cursor: pointer; padding: 8px; text-align: center; overflow: hidden;
+  transition: border-color .14s var(--ease), transform .08s var(--ease), box-shadow .14s var(--ease);
+}
+.tile:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: var(--shadow); }
+.tile.selected { border-color: var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 40%, transparent); }
+.tile.empty { border-style: dashed; border-color: var(--line); color: var(--fg-faint); }
+.tile.empty:hover { border-style: solid; color: var(--primary); }
+.tile.draggable { cursor: grab; }
+.tile.dragging { opacity: .35; }
+.tile.drop-target { border-color: var(--ok); border-style: solid; box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 40%, transparent); }
+.tile.drop-swap { border-color: var(--warn); border-style: solid; box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 40%, transparent); }
+.tile .ico { font-size: 22px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.tile .ico img { width: 30px; height: 30px; object-fit: contain; }
+.tile .lbl { font-size: 11.5px; font-weight: 570; word-break: break-word; max-width: 100%; }
+.tile .act { font-size: 10px; color: var(--fg-faint); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .handle { position: absolute; top: 4px; right: 6px; color: var(--fg-faint); font-size: 11px; opacity: 0; transition: opacity .12s; }
+.tile:hover .handle { opacity: 1; }
+.tile .badge { position: absolute; top: 5px; left: 6px; font-size: 9.5px; padding: 1px 5px; border-radius: 999px; background: var(--surface-3); color: var(--fg-faint); }
+.tile .badge.tel { background: color-mix(in srgb, var(--ok) 22%, var(--surface-3)); color: var(--ok); }
+.tile .badge.tog { background: color-mix(in srgb, var(--primary) 22%, var(--surface-3)); color: var(--primary); }
+
+.empty-state {
+  text-align: center; padding: 44px 20px; color: var(--fg-dim);
+  border: 1px dashed var(--line); border-radius: var(--radius); background: var(--surface-2);
+}
+.empty-state h3 { margin: 10px 0 4px; font-size: 15px; color: var(--fg); }
+.empty-state svg { width: 34px; height: 34px; opacity: .5; }
+
+/* ── modal ──────────────────────────────────────────────────────────────── */
+.scrim {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px);
+  display: none; align-items: center; justify-content: center; z-index: 100; padding: 24px;
+}
+.scrim.open { display: flex; animation: fade .16s var(--ease); }
+.modal {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); width: min(760px, 100%); max-height: 86vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.modal header { background: transparent; border-bottom: 1px solid var(--line); height: auto; padding: 15px 18px; }
+.modal .body { padding: 16px 18px; overflow: auto; }
+.modal footer { padding: 12px 18px; border-top: 1px solid var(--line); display: flex; gap: 9px; justify-content: flex-end; }
+
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; margin-top: 12px; }
+.icon-cell {
+  background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
+  padding: 10px 6px; cursor: pointer; text-align: center;
+  transition: border-color .12s var(--ease), transform .08s var(--ease);
+}
+.icon-cell:hover { border-color: var(--primary); transform: translateY(-2px); }
+.icon-cell img { width: 30px; height: 30px; object-fit: contain; display: block; margin: 0 auto 6px; }
+.icon-cell .n { font-size: 10.5px; color: var(--fg-dim); word-break: break-all; }
+.icon-cell.skeleton { height: 76px; background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.3s infinite; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ── feedback ───────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; right: 20px; bottom: 20px; z-index: 200;
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--primary);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 12px 16px;
+  max-width: 480px; white-space: pre-wrap; font-size: 13px;
+  display: none; animation: slide .2s var(--ease);
+}
+@keyframes slide { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+.toast.show { display: block; }
+.toast.ok  { border-left-color: var(--ok); }
+.toast.err { border-left-color: var(--err); }
+.toast.warn{ border-left-color: var(--warn); }
+
+.spin { width: 15px; height: 15px; border: 2px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
-<header>
-  <span class="dot" id="dot"></span>
-  <h1 id="hostname">MobileDeck</h1>
-  <span class="pill" id="addr">…</span>
-  <span class="grow"></span>
-  <nav>
-    <button data-tab="status" class="active">Status</button>
-    <button data-tab="layout">Layout</button>
-    <button data-tab="devices">Devices</button>
-    <button data-tab="pair">Pair</button>
-  </nav>
-</header>
+<div class="shell">
+  <header>
+    <span class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+      </svg>
+      MobileDeck
+    </span>
+    <span class="dot" id="dot" title="host connection"></span>
+    <span class="host-chip"><span id="hostname">…</span><span id="addr" class="mono"></span></span>
+    <span class="grow"></span>
+    <nav>
+      <button data-tab="status" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>Status</button>
+      <button data-tab="layout">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Layout</button>
+      <button data-tab="devices">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>Devices</button>
+      <button data-tab="pair">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><rect x="4" y="6" width="16" height="14" rx="2"/></svg>Pair</button>
+    </nav>
+    <button class="btn icon ghost" id="theme-btn" title="Toggle light and dark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6L4.5 4.5M19.5 19.5L18 18M18 6l1.5-1.5M4.5 19.5L6 18"/><circle cx="12" cy="12" r="4"/></svg>
+    </button>
+  </header>
 
-<main>
-  <!-- ── Status ─────────────────────────────────────────────────────── -->
-  <section id="tab-status" class="active">
-    <div class="card">
-      <h2>Host</h2>
-      <div class="kv" id="status-kv"></div>
-      <div class="row" style="margin-top:12px">
-        <button class="btn ghost" onclick="refreshStatus()">Refresh</button>
-        <button class="btn ghost" onclick="reloadProfiles()">Reload profiles</button>
+  <main>
+    <!-- ── Status ──────────────────────────────────────────────────────── -->
+    <section id="tab-status" class="active">
+      <div class="card">
+        <h2>Host <span class="grow"></span>
+          <button class="btn sm ghost" onclick="refreshStatus()">Refresh</button>
+          <button class="btn sm ghost" onclick="reloadProfiles()">Reload profiles</button>
+        </h2>
+        <dl class="kv" id="status-kv"></dl>
       </div>
-    </div>
-    <div class="card">
-      <h2>Capabilities on this machine</h2>
-      <div class="kv" id="caps-kv"></div>
-      <p style="color:var(--dim);font-size:12.5px">
-        The agent never elevates. Power actions and script execution are refused
-        unless the device holds those scopes, and shutdown/restart also need
-        <code>"confirm": true</code> in the action parameters.
-      </p>
-    </div>
-  </section>
-
-  <!-- ── Layout editor ──────────────────────────────────────────────── -->
-  <section id="tab-layout">
-    <div class="card">
-      <h2>Profile</h2>
-      <div class="row">
-        <select id="profile-select" style="max-width:280px" onchange="selectProfile(this.value)"></select>
-        <button class="btn ghost" onclick="newProfile()">New profile</button>
-        <span class="grow"></span>
-        <button class="btn ghost" onclick="exportProfile()">Export JSON</button>
-        <button class="btn ghost" onclick="importProfile()">Import JSON</button>
-        <button class="btn" onclick="saveProfile()">Save</button>
+      <div class="card">
+        <h2>Live</h2>
+        <div class="gauges" id="gauges"><div class="hint">Subscribe a phone to see telemetry here.</div></div>
       </div>
-    </div>
-
-    <div class="card">
-      <h2>Pages</h2>
-      <div class="row" id="page-tabs"></div>
-      <div class="row" style="margin-top:10px">
-        <input id="new-page-name" placeholder="New page name" style="max-width:230px">
-        <button class="btn ghost" onclick="addPage()">Add page</button>
-        <button class="btn ghost" onclick="setRootPage()">Make this the root page</button>
-        <button class="btn danger" onclick="deletePage()">Delete this page</button>
+      <div class="card">
+        <h2>What this machine can do</h2>
+        <dl class="kv" id="caps-kv"></dl>
+        <p class="hint" style="margin:12px 0 0">
+          The agent never elevates. Scripts and power actions are refused unless the
+          device holds those scopes, and shutdown and restart also need
+          <code>"confirm": true</code> in the action parameters.
+        </p>
       </div>
-    </div>
+    </section>
 
-    <div class="card">
-      <h2>Buttons on <span id="page-label" class="mono"></span></h2>
-      <div class="row" style="margin-bottom:10px">
-        <label style="margin:0">Columns</label>
-        <input id="grid-cols" type="number" min="1" max="16" style="width:80px" onchange="applyGrid()">
-        <label style="margin:0">Rows</label>
-        <input id="grid-rows" type="number" min="1" max="16" style="width:80px" onchange="applyGrid()">
-        <span class="grow"></span>
-        <span class="toolbar-hint">Click a cell to edit it. Drag a button to move it, or onto another to swap them.</span>
-      </div>
-      <div class="grid" id="button-grid"></div>
-    </div>
-
-    <div class="card">
-      <h2>Edit button</h2>
-      <div id="editor-empty" style="color:var(--dim)">Select a cell above.</div>
-      <div id="editor" style="display:none">
+    <!-- ── Layout ──────────────────────────────────────────────────────── -->
+    <section id="tab-layout">
+      <div class="card">
+        <h2>Profile <span class="grow"></span>
+          <button class="btn sm ghost" onclick="newProfile()">New</button>
+          <button class="btn sm ghost" onclick="exportProfile()">Export</button>
+          <button class="btn sm ghost" onclick="importProfile()">Import</button>
+          <button class="btn sm" id="save-btn" onclick="saveProfile()">Save</button>
+        </h2>
         <div class="row">
-          <div style="flex:1"><label>Label</label><input id="b-label"></div>
-          <div style="flex:1"><label>Icon (emoji or Material name)</label><input id="b-icon"></div>
+          <select id="profile-select" style="max-width:320px" onchange="selectProfile(this.value)"></select>
+          <span class="pill" id="revision-pill"></span>
+          <span class="grow"></span>
+          <span class="hint" id="save-state">All changes are saved as you make them.</span>
         </div>
-        <div class="row">
-          <div style="flex:1"><label>Row</label><input id="b-row" type="number" min="0"></div>
-          <div style="flex:1"><label>Column</label><input id="b-col" type="number" min="0"></div>
-          <div style="flex:1"><label>Column span</label><input id="b-cspan" type="number" min="1"></div>
-          <div style="flex:1"><label>Row span</label><input id="b-rspan" type="number" min="1"></div>
+      </div>
+
+      <div class="card">
+        <h2>Pages</h2>
+        <div class="row tight" id="page-tabs"></div>
+        <div class="row" style="margin-top:12px">
+          <input id="new-page-name" placeholder="New page name" style="max-width:230px">
+          <button class="btn sm ghost" onclick="addPage()">Add page</button>
+          <button class="btn sm ghost" onclick="setRootPage()">Make root</button>
+          <button class="btn sm danger" onclick="deletePage()">Delete page</button>
         </div>
-        <label>Action</label>
-        <select id="b-action" onchange="onActionChange()"></select>
-        <div id="b-params-wrap">
-          <label>Parameters (JSON)</label>
-          <textarea id="b-params" spellcheck="false"></textarea>
-          <div class="row">
-            <button class="btn ghost" onclick="fillExample()">Use example</button>
-            <span style="color:var(--dim);font-size:12px" id="b-scope"></span>
+      </div>
+
+      <div class="editor">
+        <div class="card palette">
+          <h2>Add a button</h2>
+          <input id="palette-search" placeholder="Filter actions…" oninput="renderPalette()">
+          <div class="palette-list" id="palette-list"></div>
+          <p class="hint" style="margin:10px 0 0">Drag onto a cell, or click a cell in the grid.</p>
+        </div>
+
+        <div class="canvas">
+          <div class="card">
+            <h2>Grid <span class="grow"></span>
+              <label class="hint" style="display:flex;gap:6px;align-items:center;margin:0">
+                Columns <input id="grid-cols" type="number" min="1" max="16" style="width:64px" onchange="applyGrid()">
+              </label>
+              <label class="hint" style="display:flex;gap:6px;align-items:center;margin:0">
+                Rows <input id="grid-rows" type="number" min="1" max="16" style="width:64px" onchange="applyGrid()">
+              </label>
+            </h2>
+            <div class="grid" id="button-grid"></div>
+            <p class="hint" style="margin:12px 0 0">
+              Drag a tile to move it, or onto another tile to swap them.
+            </p>
           </div>
         </div>
-        <label>Button state</label>
-        <select id="b-state">
-          <option value="momentary">momentary</option>
-          <option value="toggle">toggle</option>
-          <option value="radio">radio</option>
-          <option value="status">status</option>
-          <option value="progress">progress</option>
-          <option value="counter">counter</option>
-          <option value="timer">timer</option>
-          <option value="telemetry">telemetry</option>
-        </select>
-        <div id="b-telemetry" style="display:none">
-          <label>Metric</label>
-          <select id="b-metric"></select>
-          <label>Format</label>
-          <input id="b-format" placeholder="{value:.0f}%">
+      </div>
+
+      <div class="card" id="inspector-card">
+        <h2>Button <span class="grow"></span><span class="pill mono" id="inspector-id"></span></h2>
+        <div id="editor-empty" class="empty-state">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+          <h3>Nothing selected</h3>
+          <p>Pick a cell in the grid to edit it, or drag an action from the left.</p>
         </div>
-        <div class="row" style="margin-top:14px">
-          <button class="btn" onclick="saveButton()">Save button</button>
-          <button class="btn danger" onclick="deleteButton()">Delete button</button>
+        <div id="editor" style="display:none">
+          <div class="cols" style="grid-template-columns:1fr 1fr">
+            <label class="field"><span>Label</span><input id="b-label" oninput="markDirty()"></label>
+            <label class="field"><span>Icon</span>
+              <div class="row tight">
+                <input id="b-icon" placeholder="emoji, or a Material name" oninput="markDirty()">
+                <button class="btn ghost sm" onclick="openIconPicker()">Browse</button>
+                <button class="btn ghost sm" onclick="clearIcon()" title="Clear the icon">×</button>
+              </div>
+            </label>
+          </div>
+          <div class="row tight" style="margin-bottom:10px">
+            <span class="pill mono" id="icon-preview">no icon</span>
+          </div>
+
+          <div class="cols" style="grid-template-columns:repeat(4, 1fr)">
+            <label class="field"><span>Row</span><input id="b-row" type="number" min="0" oninput="markDirty()"></label>
+            <label class="field"><span>Column</span><input id="b-col" type="number" min="0" oninput="markDirty()"></label>
+            <label class="field"><span>Column span</span><input id="b-cspan" type="number" min="1" oninput="markDirty()"></label>
+            <label class="field"><span>Row span</span><input id="b-rspan" type="number" min="1" oninput="markDirty()"></label>
+          </div>
+
+          <label class="field"><span>Action</span>
+            <select id="b-action" onchange="onActionChange()"></select>
+          </label>
+          <div class="row tight" style="margin:-4px 0 10px">
+            <span class="pill" id="b-scope"></span>
+            <span class="grow"></span>
+            <button class="btn ghost sm" onclick="fillExample()">Use example</button>
+          </div>
+
+          <label class="field"><span>Parameters (JSON)</span>
+            <textarea id="b-params" spellcheck="false" oninput="markDirty()"></textarea>
+          </label>
+
+          <div class="cols" style="grid-template-columns:1fr 1fr">
+            <label class="field"><span>State</span>
+              <select id="b-state" onchange="onStateChange()">
+                <option value="momentary">momentary — visual feedback only</option>
+                <option value="toggle">toggle — on or off</option>
+                <option value="radio">radio — one of a group</option>
+                <option value="status">status — label from the host</option>
+                <option value="progress">progress — 0 to 1 bar</option>
+                <option value="counter">counter — an integer</option>
+                <option value="timer">timer — counts while held</option>
+                <option value="telemetry">telemetry — live metric</option>
+              </select>
+            </label>
+            <label class="field" id="b-group-wrap" style="display:none"><span>Radio group</span>
+              <input id="b-group" oninput="markDirty()">
+            </label>
+          </div>
+
+          <div id="b-telemetry" style="display:none">
+            <div class="cols" style="grid-template-columns:1fr 1fr">
+              <label class="field"><span>Metric</span><input id="b-metric" placeholder="cpu.usage" oninput="markDirty()"></label>
+              <label class="field"><span>Format</span><input id="b-format" placeholder="{value:.0f}%" oninput="markDirty()"></label>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:6px">
+            <button class="btn" onclick="saveButton()">Save button</button>
+            <button class="btn danger" onclick="deleteButton()">Delete</button>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ── Devices ────────────────────────────────────────────────────── -->
-  <section id="tab-devices">
-    <div class="card">
-      <h2>Paired devices</h2>
-      <table>
-        <thead><tr><th>Name</th><th>Platform</th><th>Scopes</th><th>Status</th><th></th></tr></thead>
-        <tbody id="devices-body"></tbody>
-      </table>
-      <p style="color:var(--dim);font-size:12.5px">
-        Several phones may connect at once, each with its own token and scopes.
-        Revoking deletes the record so the token stops working; disabling keeps it
-        but refuses the connection, which the phone reports as "revoked by the
-        host" rather than asking to pair again.
-      </p>
-    </div>
-  </section>
-
-  <!-- ── Pairing ────────────────────────────────────────────────────── -->
-  <section id="tab-pair">
-    <div class="card">
-      <h2>Add a phone</h2>
-      <p style="color:var(--dim)">
-        On the phone: open MobileDeck, enter this machine's address, then the PIN
-        below. Over a cable, run <code>adb reverse tcp:8765 tcp:8765</code> and
-        use <code>127.0.0.1:8765</code>.
-      </p>
-      <div class="row" style="margin:14px 0">
-        <button class="btn" onclick="openPairing()">Open pairing</button>
-        <span class="grow"></span>
-        <span id="pin-display" class="mono" style="font-size:30px;letter-spacing:9px"></span>
+    <!-- ── Devices ─────────────────────────────────────────────────────── -->
+    <section id="tab-devices">
+      <div class="card">
+        <h2>Paired devices <span class="grow"></span><button class="btn sm ghost" onclick="loadDevices()">Refresh</button></h2>
+        <table>
+          <thead><tr><th>Device</th><th>Platform</th><th>Scopes</th><th>Status</th><th></th></tr></thead>
+          <tbody id="devices-body"></tbody>
+        </table>
+        <p class="hint" style="margin:14px 0 0">
+          Several phones may connect at once, each with its own token and scopes.
+          Revoking deletes the record so the token stops working; disabling keeps it
+          but refuses the connection, which the phone reports as "revoked by the
+          host" rather than asking to pair again.
+        </p>
       </div>
-      <div id="pair-note" style="color:var(--dim)"></div>
+    </section>
+
+    <!-- ── Pair ────────────────────────────────────────────────────────── -->
+    <section id="tab-pair">
+      <div class="card">
+        <h2>Add a phone</h2>
+        <p class="hint" style="margin-top:0">
+          On the phone: open MobileDeck, enter this machine's address, then the PIN below.
+          Over a cable, run <code>adb reverse tcp:8765 tcp:8765</code> and use
+          <code>127.0.0.1:8765</code>.
+        </p>
+        <div class="row" style="margin:18px 0">
+          <button class="btn" onclick="openPairing()">Open pairing</button>
+          <span class="grow"></span>
+          <span id="pin-display" class="mono" style="font-size:32px;letter-spacing:10px;font-weight:600"></span>
+        </div>
+        <div id="pair-note" class="hint"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ── icon picker ───────────────────────────────────────────────────────── -->
+<div class="scrim" id="icon-scrim">
+  <div class="modal">
+    <header class="row">
+      <strong>Choose an icon</strong>
+      <span class="grow"></span>
+      <span class="pill" id="icon-licence"></span>
+      <button class="btn ghost sm" onclick="closeIconPicker()">Close</button>
+    </header>
+    <div class="body">
+      <div class="row">
+        <select id="icon-set" style="max-width:220px" onchange="searchIcons()"></select>
+        <input id="icon-query" placeholder="Search icons… (for example terminal)" oninput="debouncedSearch()" style="flex:1">
+        <button class="btn ghost sm" onclick="searchIcons()">Search</button>
+      </div>
+      <p class="hint" style="margin:10px 0 0">
+        Search needs the internet. An icon you use is cached on the host, so the
+        profile keeps working offline afterwards.
+      </p>
+      <div class="icon-grid" id="icon-results"></div>
+      <div class="row" style="margin-top:16px">
+        <input id="icon-import-name" placeholder="Name for your own image" style="max-width:220px">
+        <input type="file" id="icon-file" accept="image/*" style="max-width:260px">
+        <button class="btn ghost sm" onclick="importIcon()">Upload</button>
+      </div>
     </div>
-  </section>
-</main>
+    <footer>
+      <button class="btn ghost" onclick="closeIconPicker()">Cancel</button>
+    </footer>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -276,8 +527,7 @@ async function api(method, path, body) {
   const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (parsed.status >= 400) {
     const b = parsed.body;
-    const msg = (b && (b.message || b.error)) || JSON.stringify(b);
-    throw new Error(msg);
+    throw new Error((b && (b.message || b.error)) || JSON.stringify(b));
   }
   return parsed.body;
 }
@@ -285,20 +535,37 @@ async function api(method, path, body) {
 function toast(message, kind) {
   const el = document.getElementById("toast");
   el.textContent = message;
-  el.className = "toast " + (kind || "");
-  el.style.display = "block";
+  el.className = "toast show " + (kind || "");
   clearTimeout(el._t);
-  el._t = setTimeout(() => { el.style.display = "none"; }, kind === "err" ? 9000 : 3500);
+  el._t = setTimeout(() => el.classList.remove("show"), kind === "err" ? 9000 : 3200);
 }
 
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ── theme ─────────────────────────────────────────────────────────────────
+const themeBtn = document.getElementById("theme-btn");
+function applyTheme(mode) {
+  document.documentElement.dataset.theme = mode;
+  try { localStorage.setItem("md.theme", mode); } catch (_) {}
+}
+themeBtn.onclick = () => {
+  applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+};
+applyTheme((() => { try { return localStorage.getItem("md.theme") || "dark"; } catch (_) { return "dark"; } })());
+
 // ── state ─────────────────────────────────────────────────────────────────
-let status = null;
-let actions = [];
-let profiles = [];
-let current = null;      // the profile document being edited
-let currentPage = null;  // page id
-let selected = null;     // button id
-let metrics = [];
+let status = null, actions = [], profiles = [];
+let current = null, currentPage = null, selected = null;
+let dirty = false;
+
+function markDirty() {
+  dirty = true;
+  document.getElementById("save-state").textContent = "Unsaved changes.";
+}
 
 // ── tabs ──────────────────────────────────────────────────────────────────
 document.querySelectorAll("nav button").forEach(b => {
@@ -323,23 +590,62 @@ async function refreshStatus() {
     kv.innerHTML = "";
     const rows = [
       ["Host id", status.host_id],
-      ["Address", status.addr],
-      ["Reachable at", (status.addresses || []).join(", ") || "(loopback only)"],
-      ["Version", status.version + "  (" + status.os + ")"],
-      ["TLS", status.tls ? "on, " + status.fingerprint : "off"],
-      ["Uptime", status.uptime_s + "s"],
-      ["Profiles", (status.profiles || []).join(", ")],
-      ["Connected devices", (status.sessions || []).length],
+      ["Listening", status.addr],
+      ["Reachable at", (status.addresses || []).join("   ") || "loopback only"],
+      ["Version", (status.version || "") + "   " + (status.os || "")],
+      ["TLS", status.tls ? "on — " + (status.fingerprint || "").slice(0, 29) + "…" : "off"],
+      ["Uptime", fmtUptime(status.uptime_s)],
+      ["Profiles", (status.profiles || []).join(", ") || "none"],
+      ["Devices connected", String((status.sessions || []).length)],
     ];
     for (const [k, v] of rows) {
       kv.insertAdjacentHTML("beforeend",
-        "<div>" + k + "</div><div class='mono'>" + String(v) + "</div>");
+        "<dt>" + esc(k) + "</dt><dd class='mono'>" + esc(v) + "</dd>");
     }
-    loadDevices();
+    renderGauges();
   } catch (e) {
     document.getElementById("dot").className = "dot";
     toast("Cannot reach the host: " + e.message, "err");
   }
+}
+
+function fmtUptime(s) {
+  s = Number(s) || 0;
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  if (d) return d + "d " + h + "h";
+  if (h) return h + "h " + m + "m";
+  if (m) return m + "m " + Math.floor(s % 60) + "s";
+  return s + "s";
+}
+
+// The gauges read from the same telemetry the phones get. They are shown here so
+// a user can confirm the metric a button is bound to actually exists on this
+// machine, which is the usual reason a telemetry button shows a dash.
+function renderGauges() {
+  const el = document.getElementById("gauges");
+  const metrics = (status && status.metrics) || [];
+  if (!metrics.length) {
+    el.innerHTML = "<div class='hint'>This host reports no metrics.</div>";
+    return;
+  }
+  el.innerHTML = metrics.map(m => {
+    const known = LAST_METRICS[m];
+    const v = known == null ? null : known;
+    const pct = v == null ? 0 : Math.max(0, Math.min(100, v));
+    const cls = v == null ? "" : (pct > 90 ? "err" : pct > 75 ? "warn" : "");
+    const shown = v == null ? "--" : (m.includes("bytes") ? fmtBytes(v) : v.toFixed(1) + (m.includes("pct") || m.includes("usage") ? "%" : ""));
+    return "<div class='gauge'><div class='name'>" + esc(m) + "</div>" +
+           "<div class='val'>" + esc(shown) + "</div>" +
+           "<div class='bar " + cls + "'><i style='width:" + pct + "%'></i></div></div>";
+  }).join("");
+}
+
+let LAST_METRICS = {};
+function fmtBytes(v) {
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return v.toFixed(v < 10 && i > 0 ? 1 : 0) + " " + u[i];
 }
 
 async function loadCapabilities() {
@@ -347,17 +653,13 @@ async function loadCapabilities() {
     const info = await api("GET", "/api/v1/admin/actions");
     actions = info.actions || [];
     const kv = document.getElementById("caps-kv");
-    const power = await api("GET", "/api/v1/admin/status");
-    kv.innerHTML = "";
-    kv.insertAdjacentHTML("beforeend",
-      "<div>Action types</div><div class='mono'>" + actions.length + "</div>");
-    kv.insertAdjacentHTML("beforeend",
-      "<div>Scopes</div><div class='mono'>" + (info.scopes || []).join(", ") + "</div>");
-    kv.insertAdjacentHTML("beforeend",
-      "<div>Not granted by default</div><div class='mono'>" +
-      (info.high_risk_scopes || []).join(", ") + "</div>");
+    kv.innerHTML =
+      "<dt>Action types</dt><dd class='mono'>" + actions.length + "</dd>" +
+      "<dt>Scopes</dt><dd class='mono'>" + esc((info.scopes || []).join(", ")) + "</dd>" +
+      "<dt>Not granted by default</dt><dd class='mono'>" + esc((info.high_risk_scopes || []).join(", ")) + "</dd>";
     populateActionSelect();
-  } catch (e) { /* the status card already reported the failure */ }
+    renderPalette();
+  } catch (_) { /* the status card already reported the failure */ }
 }
 
 async function reloadProfiles() {
@@ -373,27 +675,29 @@ async function loadDevices() {
   try {
     const data = await api("GET", "/api/v1/admin/devices");
     const body = document.getElementById("devices-body");
-    body.innerHTML = "";
     const devices = data.devices || [];
     if (!devices.length) {
-      body.innerHTML = "<tr><td colspan='5' style='color:var(--dim)'>No devices are paired yet.</td></tr>";
+      body.innerHTML = "<tr><td colspan='5'><div class='empty-state'>" +
+        "<h3>No devices paired</h3><p>Use the Pair tab to add a phone.</p></div></td></tr>";
       return;
     }
+    body.innerHTML = "";
     for (const d of devices) {
       const tr = document.createElement("tr");
       tr.innerHTML =
-        "<td>" + esc(d.name) + "<br><span class='mono' style='color:var(--dim)'>" + esc(d.id) + "</span></td>" +
-        "<td>" + esc(d.platform || "-") + "</td>" +
-        "<td class='mono' style='font-size:11.5px'>" + (d.scopes || []).join(", ") + "</td>" +
+        "<td><strong>" + esc(d.name) + "</strong><br><span class='mono hint'>" + esc(d.id) + "</span></td>" +
+        "<td>" + esc(d.platform || "—") + "</td>" +
+        "<td class='mono' style='font-size:11.5px'>" + esc((d.scopes || []).join(", ")) + "</td>" +
         "<td>" + (d.disabled
           ? "<span class='pill err'>disabled</span>"
-          : (d.connected ? "<span class='pill ok'>connected</span>" : "<span class='pill'>idle</span>")) + "</td>";
+          : d.connected ? "<span class='pill ok'>connected</span>" : "<span class='pill'>idle</span>") + "</td>";
       const td = document.createElement("td");
-      td.className = "row";
+      td.className = "row tight";
+      td.style.justifyContent = "flex-end";
       td.innerHTML =
-        "<button class='btn ghost' data-a='scopes'>Scopes</button>" +
-        "<button class='btn ghost' data-a='toggle'>" + (d.disabled ? "Enable" : "Disable") + "</button>" +
-        "<button class='btn danger' data-a='revoke'>Revoke</button>";
+        "<button class='btn ghost sm' data-a='scopes'>Scopes</button>" +
+        "<button class='btn ghost sm' data-a='toggle'>" + (d.disabled ? "Enable" : "Disable") + "</button>" +
+        "<button class='btn danger sm' data-a='revoke'>Revoke</button>";
       td.querySelector("[data-a=scopes]").onclick = () => editScopes(d);
       td.querySelector("[data-a=toggle]").onclick = () => toggleDevice(d);
       td.querySelector("[data-a=revoke]").onclick = () => revokeDevice(d);
@@ -405,14 +709,14 @@ async function loadDevices() {
 
 async function editScopes(d) {
   const want = prompt(
-    "Scopes for " + d.name + " (comma separated).\n" +
-    "Available: keyboard, mouse, media, apps, scripts, system.read, system.power, profiles.write, plugins\n" +
+    "Scopes for " + d.name + " (comma separated)\n\n" +
+    "Available: keyboard, mouse, media, apps, scripts, system.read, system.power, profiles.write, plugins\n\n" +
     "scripts and system.power are high risk: they run commands and power off the machine.",
     (d.scopes || []).join(", "));
   if (want === null) return;
-  const scopes = want.split(",").map(s => s.trim()).filter(Boolean);
   try {
-    await api("PUT", "/api/v1/admin/devices/" + encodeURIComponent(d.id) + "/scopes", { scopes });
+    await api("PUT", "/api/v1/admin/devices/" + encodeURIComponent(d.id) + "/scopes",
+      { scopes: want.split(",").map(s => s.trim()).filter(Boolean) });
     toast("Scopes updated", "ok");
     loadDevices();
   } catch (e) { toast(e.message, "err"); }
@@ -438,63 +742,59 @@ async function revokeDevice(d) {
 async function openPairing() {
   try {
     const r = await api("POST", "/api/v1/admin/pair", {});
-    document.getElementById("pin-display").textContent = r.pin.split("").join(" ");
+    const el = document.getElementById("pin-display");
+    el.textContent = r.pin.split("").join(" ");
     document.getElementById("pair-note").textContent =
       "Valid for " + r.expires_in_s + " seconds. Enter it on the phone now.";
-    setTimeout(() => {
-      document.getElementById("pin-display").textContent = "";
-      document.getElementById("pair-note").textContent = "The pairing window has closed.";
-    }, r.expires_in_s * 1000);
+    let left = r.expires_in_s;
+    clearInterval(el._t);
+    el._t = setInterval(() => {
+      left--;
+      if (left <= 0) {
+        clearInterval(el._t);
+        el.textContent = "";
+        document.getElementById("pair-note").textContent = "The pairing window has closed.";
+      } else {
+        document.getElementById("pair-note").textContent =
+          "Valid for " + left + " more seconds.";
+      }
+    }, 1000);
   } catch (e) { toast(e.message, "err"); }
 }
 
-// ── layout editor ─────────────────────────────────────────────────────────
+// ── layout: profiles and pages ────────────────────────────────────────────
 async function loadProfiles() {
   try {
     const data = await api("GET", "/api/v1/admin/profiles");
     profiles = data.profiles || [];
     const sel = document.getElementById("profile-select");
-    sel.innerHTML = "";
-    for (const p of profiles) {
-      const o = document.createElement("option");
-      o.value = p.id; o.textContent = p.name + "  (" + p.id + ")";
-      sel.appendChild(o);
-    }
+    sel.innerHTML = profiles.map(p =>
+      "<option value='" + esc(p.id) + "'>" + esc(p.name) + "  (" + esc(p.id) + ")</option>").join("");
     if (data.errors && data.errors.length) {
-      toast("Rejected profiles:\n" + data.errors.map(e => e.id + ": " + e.error).join("\n"), "err");
+      toast("Some profiles were rejected:\n" + data.errors.map(e => e.id + ": " + e.error).join("\n"), "err");
     }
     if (profiles.length && !current) {
-      selectProfile(profiles[0].id);
+      await selectProfile(profiles[0].id);
     } else if (!profiles.length) {
       document.getElementById("button-grid").innerHTML =
-        "<div style='color:var(--dim)'>No profiles yet. Press “New profile”.</div>";
+        "<div class='empty-state'><h3>No profiles yet</h3><p>Press New to create one.</p></div>";
     }
-    if (status) {
-      const m = await api("GET", "/api/v1/admin/status");
-      metrics = await metricNames();
-    }
+    renderGauges();
   } catch (e) { toast(e.message, "err"); }
 }
 
-async function metricNames() {
-  try {
-    const info = await api("GET", "/api/v1/admin/status");
-    // The metric list comes from /info, which is not admin-gated; the bridge
-    // refuses it, so the panel asks the host for the same data through the
-    // status payload instead.
-    return info.metrics || [];
-  } catch { return []; }
-}
-
 async function selectProfile(id) {
+  if (dirty && !confirm("Discard unsaved changes?")) return;
   try {
     current = await api("GET", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document");
     selected = null;
+    dirty = false;
+    document.getElementById("save-state").textContent = "All changes are saved as you make them.";
     currentPage = current.root_page || (current.pages[0] && current.pages[0].id) || null;
     document.getElementById("profile-select").value = id;
-    renderPageTabs();
-    renderGrid();
-    renderEditor();
+    document.getElementById("revision-pill").textContent =
+      (profiles.find(p => p.id === id) || {}).revision || "";
+    renderPageTabs(); renderGrid(); renderEditor(); renderPalette();
   } catch (e) { toast(e.message, "err"); }
 }
 
@@ -503,24 +803,68 @@ function renderPageTabs() {
   el.innerHTML = "";
   for (const p of current.pages) {
     const b = document.createElement("button");
-    b.className = "btn " + (p.id === currentPage ? "" : "ghost");
-    b.textContent = p.name + (p.id === current.root_page ? "  ★" : "");
+    b.className = "btn sm " + (p.id === currentPage ? "" : "ghost");
+    b.innerHTML = esc(p.name) + (p.id === current.root_page ? "  ★" : "");
     b.onclick = () => { currentPage = p.id; selected = null; renderPageTabs(); renderGrid(); renderEditor(); };
     el.appendChild(b);
   }
 }
 
-function page() { return current.pages.find(p => p.id === currentPage); }
+const page = () => current.pages.find(p => p.id === currentPage);
+const gridFor = p => (p && p.grid) || (current.settings && current.settings.grid) || { columns: 4, rows: 5 };
 
-function gridFor(p) {
-  return (p && p.grid) || (current.settings && current.settings.grid) || { columns: 4, rows: 5 };
+// ── layout: the action palette ────────────────────────────────────────────
+// Dragging from here onto the grid is how a button is created. The list is the
+// host's own registry, so it cannot offer something the host will not run.
+function renderPalette() {
+  const q = (document.getElementById("palette-search").value || "").toLowerCase();
+  const risky = ["scripts", "system.power"];
+  const list = document.getElementById("palette-list");
+  const items = actions.filter(a => !q || a.type.toLowerCase().includes(q));
+  if (!items.length) {
+    list.innerHTML = "<div class='hint'>No action matches.</div>";
+    return;
+  }
+  list.innerHTML = items.map(a =>
+    "<div class='palette-item " + (risky.includes(a.scope) ? "risk" : "") + "' draggable='true' data-type='" + esc(a.type) + "'>" +
+      "<span>" + esc(a.type) + "</span>" +
+      "<span class='scope'>" + esc(a.scope || "") + "</span>" +
+    "</div>").join("");
+
+  list.querySelectorAll(".palette-item").forEach(el => {
+    el.addEventListener("dragstart", ev => {
+      paletteDrag = el.dataset.type;
+      ev.dataTransfer.setData("text/plain", el.dataset.type);
+      ev.dataTransfer.effectAllowed = "copy";
+    });
+    el.addEventListener("dragend", () => { paletteDrag = null; clearDropHints(); });
+    // A click adds to the first free cell, which is the fastest path when the
+    // user does not care where it lands.
+    el.addEventListener("dblclick", () => addActionToFirstFreeCell(el.dataset.type));
+  });
+}
+let paletteDrag = null;
+
+function addActionToFirstFreeCell(type) {
+  const p = page();
+  if (!p) return;
+  const g = gridFor(p);
+  const used = new Set((p.buttons || []).map(b => b.cell.row + "," + b.cell.column));
+  for (let r = 0; r < g.rows; r++) {
+    for (let c = 0; c < g.columns; c++) {
+      if (!used.has(r + "," + c)) { createButtonAt(r, c, type); return; }
+    }
+  }
+  toast("This page is full. Add a page or enlarge the grid.", "warn");
 }
 
+// ── layout: the grid ──────────────────────────────────────────────────────
 function renderGrid() {
   const p = page();
-  document.getElementById("page-label").textContent = p ? p.name : "";
-  if (!p) { document.getElementById("button-grid").innerHTML = ""; return; }
-
+  if (!p) {
+    document.getElementById("button-grid").innerHTML = "";
+    return;
+  }
   const g = gridFor(p);
   document.getElementById("grid-cols").value = g.columns;
   document.getElementById("grid-rows").value = g.rows;
@@ -529,8 +873,6 @@ function renderGrid() {
   grid.style.gridTemplateColumns = "repeat(" + g.columns + ", minmax(0,1fr))";
   grid.innerHTML = "";
 
-  // One cell per grid position. A button with a span occupies its top-left cell
-  // and the cells it covers are left blank, which is how the client renders it.
   const occupied = {};
   for (const b of (p.buttons || [])) {
     const c = b.cell || { row: 0, column: 0 };
@@ -547,19 +889,28 @@ function renderGrid() {
       const tile = document.createElement("div");
       tile.className = "tile" + (cell ? "" : " empty");
       if (cell && cell.id === selected) tile.classList.add("selected");
-      tile.dataset.row = r;
-      tile.dataset.col = c;
+      tile.dataset.row = r; tile.dataset.col = c;
 
       if (cell) {
         const icon = cell.icon || {};
+        const st = (cell.state && cell.state.type) || "momentary";
+        const badge = st === "telemetry" ? "<span class='badge tel'>live</span>"
+                    : (st === "toggle" || st === "radio") ? "<span class='badge tog'>" + st + "</span>"
+                    : "";
+        let ico;
+        if (icon.type === "image") {
+          const uri = (current.icons || {})[icon.value];
+          ico = uri ? "<img src='" + uri + "' alt=''>" : "<span title='icon not cached on the host'>▢</span>";
+        } else {
+          ico = esc(icon.value || "·");
+        }
         tile.classList.add("draggable");
         tile.draggable = true;
-        tile.innerHTML =
+        tile.innerHTML = badge +
           "<span class='handle' title='drag to move'>⠿</span>" +
-          "<div class='ico'>" + esc(icon.value || "·") + "</div>" +
+          "<div class='ico'>" + ico + "</div>" +
           "<div class='lbl'>" + esc(cell.label || cell.id) + "</div>" +
-          "<div class='mono' style='font-size:10px;color:var(--dim)'>" +
-          esc((cell.on_press && cell.on_press.type) || "") + "</div>";
+          "<div class='act'>" + esc((cell.on_press && cell.on_press.type) || "") + "</div>";
         tile.onclick = () => { selected = cell.id; renderGrid(); renderEditor(); };
         attachDrag(tile, cell);
       } else {
@@ -573,78 +924,81 @@ function renderGrid() {
 }
 
 // ── drag and drop ─────────────────────────────────────────────────────────
-// Moving a button is the most common layout edit, and it should not require
-// deleting and recreating it. Dropping onto an empty cell moves the button;
-// dropping onto another button swaps the two, which is what the user means when
-// they drag one onto the other.
 let dragSource = null;
 
+function clearDropHints() {
+  document.querySelectorAll(".drop-target,.drop-swap")
+    .forEach(el => el.classList.remove("drop-target", "drop-swap"));
+}
+
 function attachDrag(tile, button) {
-  tile.addEventListener("dragstart", (ev) => {
+  tile.addEventListener("dragstart", ev => {
     dragSource = button;
     tile.classList.add("dragging");
-    // Some browsers refuse a drag with no data set.
     ev.dataTransfer.setData("text/plain", button.id);
     ev.dataTransfer.effectAllowed = "move";
   });
   tile.addEventListener("dragend", () => {
     tile.classList.remove("dragging");
     dragSource = null;
-    document.querySelectorAll(".drop-target,.drop-swap")
-      .forEach(el => el.classList.remove("drop-target", "drop-swap"));
+    clearDropHints();
   });
 }
 
 function attachDrop(tile, row, col) {
-  tile.addEventListener("dragover", (ev) => {
-    if (!dragSource) return;
+  tile.addEventListener("dragover", ev => {
+    if (!dragSource && !paletteDrag) return;
     ev.preventDefault();
+    if (paletteDrag) {
+      tile.classList.add("drop-target");
+      return;
+    }
     const p = page();
-    const target = (p.buttons || []).find(b => {
-      const c = b.cell || {};
-      return c.row === row && c.column === col;
-    });
+    const target = (p.buttons || []).find(b => b.cell.row === row && b.cell.column === col);
     tile.classList.toggle("drop-swap", !!target && target.id !== dragSource.id);
     tile.classList.toggle("drop-target", !target);
-    ev.dataTransfer.dropEffect = "move";
   });
 
-  tile.addEventListener("dragleave", () => {
-    tile.classList.remove("drop-target", "drop-swap");
-  });
+  tile.addEventListener("dragleave", () => tile.classList.remove("drop-target", "drop-swap"));
 
-  tile.addEventListener("drop", async (ev) => {
+  tile.addEventListener("drop", async ev => {
     ev.preventDefault();
+    clearDropHints();
+
+    // An action dragged in from the palette creates a button here.
+    if (paletteDrag) {
+      const type = paletteDrag;
+      paletteDrag = null;
+      await createButtonAt(row, col, type);
+      return;
+    }
     if (!dragSource) return;
+
     const p = page();
     const from = dragSource.cell || { row: 0, column: 0 };
     if (from.row === row && from.column === col) return;
-
-    const target = (p.buttons || []).find(b => {
-      const c = b.cell || {};
-      return c.row === row && c.column === col;
-    });
+    const target = (p.buttons || []).find(b => b.cell.row === row && b.cell.column === col);
 
     if (target && target.id !== dragSource.id) {
-      // Swap: the other button takes the dragged one's place.
-      target.cell = {
-        row: from.row, column: from.column,
-        row_span: target.cell.row_span || 1, column_span: target.cell.column_span || 1,
-      };
+      target.cell = { row: from.row, column: from.column,
+        row_span: target.cell.row_span || 1, column_span: target.cell.column_span || 1 };
     }
-    dragSource.cell = {
-      row, column: col,
-      row_span: dragSource.cell.row_span || 1,
-      column_span: dragSource.cell.column_span || 1,
-    };
+    dragSource.cell = { row, column: col,
+      row_span: dragSource.cell.row_span || 1, column_span: dragSource.cell.column_span || 1 };
 
     const moved = dragSource.id;
     dragSource = null;
     selected = moved;
-    renderGrid();
-    renderEditor();
+    renderGrid(); renderEditor();
     await saveProfile();
   });
+}
+
+// ── layout: the inspector ─────────────────────────────────────────────────
+function populateActionSelect() {
+  const sel = document.getElementById("b-action");
+  sel.innerHTML = actions.map(a =>
+    "<option value='" + esc(a.type) + "'>" + esc(a.type) + (a.scope ? "   [" + a.scope + "]" : "") + "</option>").join("");
 }
 
 function renderEditor() {
@@ -652,81 +1006,94 @@ function renderEditor() {
   const b = p && (p.buttons || []).find(x => x.id === selected);
   document.getElementById("editor-empty").style.display = b ? "none" : "block";
   document.getElementById("editor").style.display = b ? "block" : "none";
+  document.getElementById("inspector-id").textContent = b ? b.id : "";
   if (!b) return;
 
   document.getElementById("b-label").value = b.label || "";
-  document.getElementById("b-icon").value = (b.icon && b.icon.value) || "";
+  const ic = b.icon || {};
+  document.getElementById("b-icon").value = ic.type === "image" ? ic.value : (ic.value || "");
+  renderIconPreview(ic);
   const c = b.cell || {};
   document.getElementById("b-row").value = c.row || 0;
   document.getElementById("b-col").value = c.column || 0;
   document.getElementById("b-cspan").value = c.column_span || 1;
   document.getElementById("b-rspan").value = c.row_span || 1;
-
-  const sel = document.getElementById("b-action");
-  const type = (b.on_press && b.on_press.type) || "";
-  sel.value = type;
+  document.getElementById("b-action").value = (b.on_press && b.on_press.type) || "";
   onActionChange();
   document.getElementById("b-params").value =
     b.on_press && b.on_press.params ? JSON.stringify(b.on_press.params, null, 2) : "{}";
 
   const st = (b.state && b.state.type) || "momentary";
   document.getElementById("b-state").value = st;
+  document.getElementById("b-group").value = (b.state && b.state.group) || "";
+  document.getElementById("b-metric").value = (b.state && b.state.metric) || "";
+  document.getElementById("b-format").value = (b.state && b.state.format) || "";
   onStateChange();
-  if (st === "telemetry") {
-    document.getElementById("b-metric").value = (b.state && b.state.metric) || "";
-    document.getElementById("b-format").value = (b.state && b.state.format) || "";
-  }
 }
 
-function populateActionSelect() {
-  const sel = document.getElementById("b-action");
-  if (!sel || sel.dataset.filled) return;
-  sel.innerHTML = "";
-  for (const a of actions) {
-    const o = document.createElement("option");
-    o.value = a.type;
-    o.textContent = a.type + (a.scope ? "   [" + a.scope + "]" : "");
-    sel.appendChild(o);
+function renderIconPreview(ic) {
+  const el = document.getElementById("icon-preview");
+  if (!ic || !ic.value || ic.type === "none") {
+    el.textContent = "no icon";
+    return;
   }
-  sel.dataset.filled = "1";
+  if (ic.type === "image") {
+    const uri = (current.icons || {})[ic.value];
+    el.innerHTML = uri
+      ? "<img src='" + uri + "' style='width:18px;height:18px;vertical-align:middle;margin-right:6px' alt=''>" + esc(ic.value)
+      : esc(ic.value) + "  (not cached on the host yet)";
+  } else {
+    el.textContent = ic.value;
+  }
 }
 
 function onActionChange() {
   const t = document.getElementById("b-action").value;
   const a = actions.find(x => x.type === t);
-  document.getElementById("b-scope").textContent =
-    a && a.scope ? "requires the " + a.scope + " scope" : "no scope required";
-}
-
-function fillExample() {
-  const t = document.getElementById("b-action").value;
-  const a = actions.find(x => x.type === t);
-  if (a && a.example) document.getElementById("b-params").value = a.example;
+  const risky = ["scripts", "system.power"];
+  const el = document.getElementById("b-scope");
+  el.textContent = a && a.scope ? "requires the " + a.scope + " scope" : "no scope required";
+  el.className = "pill" + (a && risky.includes(a.scope) ? " warn" : "");
 }
 
 function onStateChange() {
   const st = document.getElementById("b-state").value;
   document.getElementById("b-telemetry").style.display = st === "telemetry" ? "block" : "none";
+  document.getElementById("b-group-wrap").style.display = st === "radio" ? "block" : "none";
 }
 
-document.getElementById("b-state").onchange = onStateChange;
+function fillExample() {
+  const a = actions.find(x => x.type === document.getElementById("b-action").value);
+  if (a && a.example) {
+    document.getElementById("b-params").value = a.example;
+    markDirty();
+  }
+}
 
-async function createButtonAt(row, col) {
+function clearIcon() {
+  document.getElementById("b-icon").value = "";
+  renderIconPreview({ type: "none", value: "" });
+  markDirty();
+}
+
+async function createButtonAt(row, col, type) {
   const p = page();
   if (!p) return;
-  const id = "btn_" + Math.random().toString(36).slice(2, 8);
+  const action = type || (actions.length ? actions[0].type : "noop");
+  const a = actions.find(x => x.type === action);
   const b = {
-    id, label: "New button",
+    id: "btn_" + Math.random().toString(36).slice(2, 8),
+    label: action.split(".").pop().replace(/_/g, " "),
     icon: { type: "emoji", value: "·" },
     cell: { row, column: col, row_span: 1, column_span: 1 },
     state: { type: "momentary" },
-    on_press: { type: actions.length ? actions[0].type : "noop", params: {} }
+    on_press: { type: action, params: a && a.example ? JSON.parse(a.example) : {} },
   };
   p.buttons = p.buttons || [];
   p.buttons.push(b);
   selected = b.id;
-  renderGrid();
-  renderEditor();
+  renderGrid(); renderEditor();
+  await saveProfile();
 }
 
 async function saveButton() {
@@ -734,33 +1101,45 @@ async function saveButton() {
   const b = (p.buttons || []).find(x => x.id === selected);
   if (!b) return;
 
+  const ta = document.getElementById("b-params");
   let params = {};
-  try { params = JSON.parse(document.getElementById("b-params").value || "{}"); }
-  catch (e) { toast("Parameters are not valid JSON: " + e.message, "err"); return; }
+  try {
+    params = JSON.parse(ta.value || "{}");
+    ta.classList.remove("bad");
+  } catch (e) {
+    ta.classList.add("bad");
+    toast("Parameters are not valid JSON: " + e.message, "err");
+    return;
+  }
 
-  b.label = document.getElementById("b-label").value;
   const iconVal = document.getElementById("b-icon").value.trim();
-  b.icon = iconVal
-    ? (/^[\x00-\x7F]+$/.test(iconVal) && iconVal.length > 2
-        ? { type: "material", value: iconVal }
-        : { type: "emoji", value: iconVal })
-    : { type: "none" };
+  const looksLikeImage = /\.(png|jpg|jpeg|webp|gif)$/i.test(iconVal);
+  b.label = document.getElementById("b-label").value;
+  b.icon = !iconVal
+    ? { type: "none" }
+    : looksLikeImage
+      ? { type: "image", value: iconVal }
+      : (/^[\x20-\x7E]+$/.test(iconVal) && iconVal.length > 2
+          ? { type: "material", value: iconVal }
+          : { type: "emoji", value: iconVal });
   b.cell = {
     row: Number(document.getElementById("b-row").value) || 0,
     column: Number(document.getElementById("b-col").value) || 0,
     row_span: Number(document.getElementById("b-rspan").value) || 1,
-    column_span: Number(document.getElementById("b-cspan").value) || 1
+    column_span: Number(document.getElementById("b-cspan").value) || 1,
   };
   b.on_press = { type: document.getElementById("b-action").value, params };
 
   const st = document.getElementById("b-state").value;
   b.state = { type: st };
+  if (st === "radio") b.state.group = document.getElementById("b-group").value.trim() || "g";
   if (st === "telemetry") {
     b.state.metric = document.getElementById("b-metric").value.trim();
     b.state.format = document.getElementById("b-format").value.trim() || "{value:.0f}%";
-    if (!b.state.metric) { toast("A telemetry button needs a metric", "err"); return; }
+    if (!b.state.metric) { toast("A telemetry button needs a metric.", "err"); return; }
   }
 
+  dirty = false;
   await saveProfile();
 }
 
@@ -769,16 +1148,15 @@ async function deleteButton() {
   if (!p || !selected) return;
   p.buttons = (p.buttons || []).filter(x => x.id !== selected);
   selected = null;
-  renderGrid();
-  renderEditor();
+  renderGrid(); renderEditor();
   await saveProfile();
 }
 
 async function addPage() {
   const name = document.getElementById("new-page-name").value.trim();
-  if (!name) { toast("Give the page a name", "err"); return; }
+  if (!name) { toast("Give the page a name.", "err"); return; }
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "page";
-  if (current.pages.some(p => p.id === id)) { toast("A page with that id already exists", "err"); return; }
+  if (current.pages.some(p => p.id === id)) { toast("A page with that id already exists.", "err"); return; }
   current.pages.push({ id, name, buttons: [] });
   currentPage = id;
   document.getElementById("new-page-name").value = "";
@@ -787,8 +1165,8 @@ async function addPage() {
 }
 
 async function deletePage() {
-  if (current.pages.length <= 1) { toast("A profile must keep at least one page", "err"); return; }
-  if (currentPage === current.root_page) { toast("The root page cannot be deleted", "err"); return; }
+  if (current.pages.length <= 1) { toast("A profile must keep at least one page.", "err"); return; }
+  if (currentPage === current.root_page) { toast("The root page cannot be deleted. Make another page root first.", "err"); return; }
   if (!confirm("Delete page “" + page().name + "” and its buttons?")) return;
   current.pages = current.pages.filter(p => p.id !== currentPage);
   currentPage = current.pages[0].id;
@@ -813,37 +1191,52 @@ async function applyGrid() {
 
 async function saveProfile() {
   const id = current.id;
+  const btn = document.getElementById("save-btn");
+  btn.disabled = true;
   try {
     current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document", current);
-    toast("Saved. Connected phones update immediately.", "ok");
-    renderGrid();
-    renderEditor();
+    dirty = false;
+    document.getElementById("save-state").textContent = "Saved. Connected phones updated.";
+    renderGrid(); renderEditor();
+    loadProfilesQuietly();
   } catch (e) {
     toast("Not saved: " + e.message, "err");
     // Reload the document the host actually holds.
     //
     // Without this the panel keeps showing the edit that was just refused, and
     // every later save fails for the same reason: the local copy is the invalid
-    // one. A refused drag would leave the grid permanently unsaveable, with no
-    // way back except closing the window.
+    // one. A refused drag would leave the grid permanently unsaveable.
     try {
       current = await api("GET", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document");
       if (!current.pages.some(p => p.id === currentPage)) {
         currentPage = current.root_page || (current.pages[0] && current.pages[0].id);
       }
       selected = null;
-      renderPageTabs();
-      renderGrid();
-      renderEditor();
-    } catch (_) {
-      // The host is unreachable; the next refresh will resynchronise.
-    }
+      renderPageTabs(); renderGrid(); renderEditor();
+    } catch (_) {}
+  } finally {
+    btn.disabled = false;
   }
+}
+
+async function loadProfilesQuietly() {
+  try {
+    const data = await api("GET", "/api/v1/admin/profiles");
+    profiles = data.profiles || [];
+    const sel = document.getElementById("profile-select");
+    const keep = sel.value;
+    sel.innerHTML = profiles.map(p =>
+      "<option value='" + esc(p.id) + "'>" + esc(p.name) + "  (" + esc(p.id) + ")</option>").join("");
+    sel.value = keep;
+    document.getElementById("revision-pill").textContent =
+      (profiles.find(p => p.id === keep) || {}).revision || "";
+  } catch (_) {}
 }
 
 async function newProfile() {
   const id = prompt("New profile id (letters, digits, - and _):");
   if (!id) return;
+  if (!/^[A-Za-z0-9._-]+$/.test(id)) { toast("That id has characters the host will reject.", "err"); return; }
   const doc = {
     schema: 1, id, name: id,
     icon: { type: "emoji", value: "🎛" },
@@ -853,14 +1246,15 @@ async function newProfile() {
     pages: [{ id: "home", name: "Home", buttons: [
       { id: "hello", label: "Hello", icon: { type: "emoji", value: "👋" },
         cell: { row: 0, column: 0 }, state: { type: "momentary" },
-        on_press: { type: "deck.notify", params: { message: "hello", level: "info" } } }
-    ]}]
+        on_press: { type: "deck.notify", params: { message: "hello", level: "info" } } },
+    ]}],
   };
   try {
-    current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document", doc);
+    await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(id) + "/document", doc);
     toast("Created " + id, "ok");
-    current = null;
-    loadProfiles();
+    current = null; dirty = false;
+    await loadProfiles();
+    await selectProfile(id);
   } catch (e) { toast(e.message, "err"); }
 }
 
@@ -868,8 +1262,8 @@ async function exportProfile() {
   const json = JSON.stringify(current, null, 2);
   try {
     await navigator.clipboard.writeText(json);
-    toast("The profile JSON is on your clipboard", "ok");
-  } catch {
+    toast("The profile JSON is on your clipboard.", "ok");
+  } catch (_) {
     const w = window.open("", "_blank");
     w.document.write("<pre>" + esc(json) + "</pre>");
   }
@@ -880,34 +1274,174 @@ async function importProfile() {
   if (!text) return;
   try {
     const doc = JSON.parse(text);
-    current = await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(doc.id) + "/document", doc);
+    await api("PUT", "/api/v1/admin/profiles/" + encodeURIComponent(doc.id) + "/document", doc);
     toast("Imported " + doc.id, "ok");
-    current = null;
-    loadProfiles();
+    current = null; dirty = false;
+    await loadProfiles();
+    await selectProfile(doc.id);
   } catch (e) { toast("Import failed: " + e.message, "err"); }
 }
 
-function esc(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+// ── icon picker ───────────────────────────────────────────────────────────
+let iconSetsLoaded = false;
+let searchTimer = null;
+
+async function openIconPicker() {
+  document.getElementById("icon-scrim").classList.add("open");
+  if (!iconSetsLoaded) {
+    try {
+      const data = await api("GET", "/api/v1/admin/icons");
+      const sel = document.getElementById("icon-set");
+      if (!data.available) {
+        sel.innerHTML = "<option>unavailable</option>";
+        document.getElementById("icon-results").innerHTML =
+          "<div class='hint'>This host has no icon cache configured.</div>";
+        return;
+      }
+      sel.innerHTML = (data.sets || []).map(s =>
+        "<option value='" + esc(s.id) + "' data-licence='" + esc(s.licence) + "'>" +
+        esc(s.name) + "  (" + esc(s.licence) + ")</option>").join("");
+      iconSetsLoaded = true;
+      onIconSetChange();
+    } catch (e) { toast(e.message, "err"); return; }
+  }
+  document.getElementById("icon-query").focus();
 }
+
+function closeIconPicker() {
+  document.getElementById("icon-scrim").classList.remove("open");
+}
+
+function onIconSetChange() {
+  const sel = document.getElementById("icon-set");
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById("icon-licence").textContent = opt ? opt.dataset.licence || "" : "";
+}
+
+document.getElementById("icon-set").addEventListener("change", onIconSetChange);
+
+function debouncedSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(searchIcons, 260);
+}
+
+async function searchIcons() {
+  const set = document.getElementById("icon-set").value;
+  const q = document.getElementById("icon-query").value.trim();
+  const results = document.getElementById("icon-results");
+
+  // A skeleton row, so the panel does not look frozen while the catalogue is
+  // fetched on the first search.
+  results.innerHTML = Array.from({ length: 12 }, () => "<div class='icon-cell skeleton'></div>").join("");
+
+  try {
+    const data = await api("GET",
+      "/api/v1/admin/icons/search?set=" + encodeURIComponent(set) +
+      "&limit=48&q=" + encodeURIComponent(q));
+    if (!data.icons || !data.icons.length) {
+      results.innerHTML = "<div class='hint'>No icon matches “" + esc(q) + "”.</div>";
+      return;
+    }
+    const cached = new Set(data.cached || []);
+    results.innerHTML = data.icons.map(n =>
+      "<div class='icon-cell' data-name='" + esc(n) + "'>" +
+        "<div class='ico' style='height:30px'></div>" +
+        "<div class='n'>" + esc(n) + (cached.has(n) ? " ✓" : "") + "</div>" +
+      "</div>").join("");
+
+    // Preview lazily: each cell asks the host for the rasterised PNG, which is
+    // cached on disk after the first time. Loading all 48 at once would be 48
+    // requests; they are issued in order and each one is cheap after the first.
+    for (const cell of results.querySelectorAll(".icon-cell")) {
+      const name = cell.dataset.name;
+      cell.onclick = () => chooseIcon(name);
+      try {
+        const pv = await api("GET",
+          "/api/v1/admin/icons/" + encodeURIComponent(name) + "/preview?set=" + encodeURIComponent(set));
+        cell.querySelector(".ico").innerHTML = "<img src='" + pv.data_uri + "' alt=''>";
+      } catch (_) {
+        cell.querySelector(".ico").textContent = "?";
+      }
+    }
+  } catch (e) {
+    results.innerHTML = "<div class='hint'>" + esc(e.message) + "</div>";
+  }
+}
+
+function chooseIcon(name) {
+  const set = document.getElementById("icon-set").value;
+  // The stored file name is what the profile references; the host derives it the
+  // same way, so the panel asks for the preview once more to learn it rather
+  // than duplicating the naming rule here.
+  api("GET", "/api/v1/admin/icons/" + encodeURIComponent(name) + "/preview?set=" + encodeURIComponent(set))
+    .then(pv => {
+      document.getElementById("b-icon").value = pv.file_name;
+      current.icons = current.icons || {};
+      current.icons[pv.file_name] = pv.data_uri;
+      renderIconPreview({ type: "image", value: pv.file_name });
+      markDirty();
+      closeIconPicker();
+      toast("Icon ready. Press Save button to apply it.", "ok");
+    })
+    .catch(e => toast(e.message, "err"));
+}
+
+async function importIcon() {
+  const name = document.getElementById("icon-import-name").value.trim();
+  const file = document.getElementById("icon-file").files[0];
+  if (!name) { toast("Give the image a name.", "err"); return; }
+  if (!file) { toast("Choose a file.", "err"); return; }
+
+  const buf = await file.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  const b64 = btoa(binary);
+
+  try {
+    const res = await api("POST", "/api/v1/admin/icons/import", { name, data: b64 });
+    document.getElementById("b-icon").value = res.file_name;
+    current.icons = current.icons || {};
+    current.icons[res.file_name] = res.data_uri;
+    renderIconPreview({ type: "image", value: res.file_name });
+    markDirty();
+    closeIconPicker();
+    toast("Image imported. Press Save button to apply it.", "ok");
+  } catch (e) { toast(e.message, "err"); }
+}
+
+// ── keyboard ──────────────────────────────────────────────────────────────
+document.addEventListener("keydown", ev => {
+  if (ev.key === "Escape") closeIconPicker();
+  // Ctrl/Cmd+S saves the profile, which is what every editor does.
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "s") {
+    ev.preventDefault();
+    if (current) saveProfile();
+  }
+  // Delete removes the selected button, but never while typing.
+  const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName);
+  if (!typing && (ev.key === "Delete" || ev.key === "Backspace") && selected) {
+    ev.preventDefault();
+    deleteButton();
+  }
+});
 
 // ── boot ──────────────────────────────────────────────────────────────────
 (async function boot() {
-  // The bridge is injected by the Go side before the page loads; a short poll
-  // avoids a race on a slow first paint.
-  for (let i = 0; i < 50 && typeof md !== "function"; i++) {
+  for (let i = 0; i < 60 && typeof md !== "function"; i++) {
     await new Promise(r => setTimeout(r, 100));
   }
   if (typeof md !== "function") {
-    toast("The host bridge did not load. The window is a shell without it.", "err");
+    toast("The host bridge did not load, so this window cannot talk to the host.", "err");
     return;
   }
   bridgeReady = true;
   await refreshStatus();
   await loadCapabilities();
   await loadProfiles();
+  // The gauges poll while the window is open: it is the cheapest way to show
+  // that telemetry is alive, and it stops when the window closes.
+  setInterval(refreshStatus, 5000);
 })();
 </script>
 </body>
