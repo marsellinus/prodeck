@@ -29,15 +29,24 @@ const (
 
 // Profile is one complete deck layout.
 type Profile struct {
-	Schema     int               `json:"schema"`
-	ID         string            `json:"id"`
-	Name       string            `json:"name"`
-	Icon       Icon              `json:"icon"`
-	Theme      Theme             `json:"theme"`
-	Settings   Settings          `json:"settings"`
-	RootPage   string            `json:"root_page"`
-	Pages      []Page            `json:"pages"`
-	Meta       map[string]string `json:"meta,omitempty"`
+	Schema   int               `json:"schema"`
+	ID       string            `json:"id"`
+	Name     string            `json:"name"`
+	Icon     Icon              `json:"icon"`
+	Theme    Theme             `json:"theme"`
+	Settings Settings          `json:"settings"`
+	RootPage string            `json:"root_page"`
+	Pages    []Page            `json:"pages"`
+	Meta     map[string]string `json:"meta,omitempty"`
+	// Icons maps an icon file name to a data URI, and is computed when the
+	// document is served rather than stored in the file (PROTOCOL.md §5).
+	//
+	// It exists because protocol v1 has no message that fetches a file from the
+	// host, so an `"icon": {"type":"image"}` button used to render as a
+	// placeholder. Inlining only the icons a profile references keeps the
+	// document small, and needs no new endpoint, no new authentication decision
+	// and no second round trip per button.
+	Icons      map[string]string `json:"icons,omitempty"`
 	Dir        string            `json:"-"` // on-disk directory, filled by the loader
 	Revision   string            `json:"-"` // content hash, filled by the loader
 	SourcePath string            `json:"-"`
@@ -614,4 +623,32 @@ func (p *Profile) ApplyDefaults() {
 			}
 		}
 	}
+}
+
+// ImageIconFiles returns the distinct file names referenced by an
+// `"icon": {"type":"image"}` on any button, in document order.
+//
+// The server uses it to decide what to inline: a profile may name an icon that
+// no button uses, and fetching that would be work with no visible effect.
+func (p *Profile) ImageIconFiles() []string {
+	seen := map[string]bool{}
+	var out []string
+	collect := func(ic Icon) {
+		if ic.Type != "image" || ic.Value == "" || seen[ic.Value] {
+			return
+		}
+		seen[ic.Value] = true
+		out = append(out, ic.Value)
+	}
+	collect(p.Icon)
+	for i := range p.Pages {
+		page := &p.Pages[i]
+		if page.Icon != nil {
+			collect(*page.Icon)
+		}
+		for j := range page.Buttons {
+			collect(page.Buttons[j].Icon)
+		}
+	}
+	return out
 }

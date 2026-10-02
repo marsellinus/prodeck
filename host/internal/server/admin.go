@@ -62,6 +62,14 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		s.adminActions(w, r)
 	case len(parts) == 1 && parts[0] == "plugins":
 		s.adminPlugins(w, r)
+	case len(parts) == 1 && parts[0] == "icons":
+		s.adminIconSets(w, r)
+	case len(parts) == 2 && parts[0] == "icons" && parts[1] == "search":
+		s.adminIconSearch(w, r)
+	case len(parts) == 2 && parts[0] == "icons" && parts[1] == "import":
+		s.adminIconImport(w, r)
+	case len(parts) == 3 && parts[0] == "icons" && parts[2] == "preview":
+		s.adminIconPreview(w, r, parts[1])
 	case len(parts) == 1 && parts[0] == "pair":
 		s.adminPair(w, r)
 	case len(parts) == 1 && parts[0] == "shutdown":

@@ -520,3 +520,60 @@ func TestCanonicalExampleProfileMatchesEmbedded(t *testing.T) {
 		t.Fatalf("the example profile is not a JSON object")
 	}
 }
+
+// TestImageIconFiles covers the helper the server uses to decide what to inline.
+func TestImageIconFiles(t *testing.T) {
+	raw := `{
+	  "schema": 1, "id": "test", "name": "Test",
+	  "icon": {"type": "image", "value": "profile.png"},
+	  "settings": {"grid": {"columns": 3, "rows": 3}},
+	  "pages": [{"id": "home", "name": "Home", "buttons": [
+	    {"id":"a","label":"A","icon":{"type":"image","value":"terminal.png"},
+	     "cell":{"row":0,"column":0},"state":{"type":"momentary"},
+	     "on_press":{"type":"noop","params":{}}},
+	    {"id":"b","label":"B","icon":{"type":"image","value":"terminal.png"},
+	     "cell":{"row":0,"column":1},"state":{"type":"momentary"},
+	     "on_press":{"type":"noop","params":{}}},
+	    {"id":"c","label":"C","icon":{"type":"emoji","value":"x"},
+	     "cell":{"row":0,"column":2},"state":{"type":"momentary"},
+	     "on_press":{"type":"noop","params":{}}}
+	  ]}]
+	}`
+	p, err := Load([]byte(raw), testActionTypes)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	got := p.ImageIconFiles()
+	want := []string{"profile.png", "terminal.png"}
+	if len(got) != len(want) {
+		t.Fatalf("ImageIconFiles = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("file %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+	// The emoji button must not contribute.
+	for _, f := range got {
+		if f == "x" {
+			t.Error("an emoji icon was reported as an image file")
+		}
+	}
+}
+
+// TestIconsFieldIsNotPersistedInTheFile checks that the computed map is optional
+// on input: a hand-written profile never contains it, and loading one must not
+// fail.
+func TestIconsFieldIsNotPersistedInTheFile(t *testing.T) {
+	p, err := Load([]byte(minimal()), testActionTypes)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(p.Icons) != 0 {
+		t.Errorf("icons = %v, want empty for a profile that has none", p.Icons)
+	}
+	if files := p.ImageIconFiles(); len(files) != 0 {
+		t.Errorf("ImageIconFiles = %v, want none", files)
+	}
+}

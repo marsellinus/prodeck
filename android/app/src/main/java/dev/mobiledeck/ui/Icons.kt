@@ -1,5 +1,7 @@
 package dev.mobiledeck.ui
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -60,6 +62,10 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
@@ -78,8 +84,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
  *    is rendered as text. This is a deliberate limitation, documented rather
  *    than hidden: the fallback below makes it legible.
  *  * `image` — a file in the profile's `icons/` directory on the *host*. The
- *    protocol has no icon-fetch message in v1, so an image icon cannot be
- *    loaded and falls back.
+ *    protocol has no icon-fetch message in v1, so the host inlines the file it
+ *    references as a `data:image/png;base64,` URI in the profile document's
+ *    top-level `icons` map. [decodeDataUri] turns that URI into a bitmap. A
+ *    map that is absent, empty, or missing this file — which is normal, the
+ *    host only inlines what a button references — falls back like everything
+ *    else.
  *  * anything unknown, or a name not in the map — falls back to the first
  *    character of the label, so a tile is never blank. A blank tile is
  *    indistinguishable from a broken one, and the user cannot tell which
@@ -195,3 +205,79 @@ fun materialIcon(name: String): ImageVector? {
  */
 fun fallbackGlyph(label: String): String =
     label.trim().firstOrNull()?.uppercase() ?: "?"
+
+/**
+ * Extracts the base64 payload of a `data:image/png;base64,` URI, or null when
+ * the string is not exactly that.
+ *
+ * Split out from [decodeDataUri] so the shape check is testable on the JVM:
+ * `android.util.Base64` and `BitmapFactory` are framework classes and are not
+ * on the classpath of a plain unit test. The check is strict on purpose — a
+ * URI that is not a base64 PNG must fail here rather than be fed to the
+ * decoder, because the placeholder is the only sane rendering for a value the
+ * host should never have sent.
+ */
+internal fun pngBase64Payload(uri: String?): String? {
+    if (uri == null) return null
+    val prefix = "data:image/png;base64,"
+    if (!uri.startsWith(prefix)) return null
+    val payload = uri.substring(prefix.length)
+    return payload.ifBlank { null }
+}
+
+/**
+ * The decoded icons, keyed by URI. Bounded because a profile may reference many
+ * icons and an unbounded map would hold every bitmap the user ever saw for the
+ * life of the process.
+ *
+ * A null value is cached too: a URI that failed to decode once will fail every
+ * time, and without the negative entry a bad icon would re-run Base64 and
+ * BitmapFactory on every recomposition of the grid.
+ */
+private val iconCache = object : LinkedHashMap<String, ImageBitmap?>(CACHE_MAX, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap?>?) =
+        size > CACHE_MAX
+}
+
+private const val CACHE_MAX = 64
+
+/**
+ * Decodes a `data:image/png;base64,` URI into a Bitmap, cached by URI.
+ * Returns null on anything malformed: an icon that cannot be decoded must
+ * degrade to the existing placeholder, never crash the grid.
+ *
+ * `Base64.DEFAULT` rather than `NO_WRAP` because a JSON encoder may have
+ * introduced newlines into the payload, and `DEFAULT` is the only flag that
+ * both tolerates and skips them.
+ */
+fun decodeDataUri(uri: String?): ImageBitmap? {
+    // `key` is non-null for the cache; a null URI is a miss by definition.
+    val key = uri ?: return null
+    val payload = pngBase64Payload(key) ?: return null
+
+    synchronized(iconCache) {
+        // `containsKey` distinguishes "cached miss" from "not cached": a plain
+        // `get` would return null for both and never cache the negative.
+        if (iconCache.containsKey(key)) return iconCache[key]
+    }
+
+    val decoded = runCatching {
+        val bytes = Base64.decode(payload, Base64.DEFAULT)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    }.getOrNull()
+
+    synchronized(iconCache) {
+        iconCache[key] = decoded
+    }
+    return decoded
+}
+
+/**
+ * Decodes [uri] once per value and keeps the result across recompositions.
+ *
+ * The decode is memoised rather than performed inline because `DeckButton`
+ * recomposes on every press, state push and telemetry tick, and decoding a
+ * PNG on each of those would be wasted work on the frame path.
+ */
+@Composable
+fun rememberIconBitmap(uri: String?): ImageBitmap? = remember(uri) { decodeDataUri(uri) }

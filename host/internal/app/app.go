@@ -7,11 +7,13 @@
 package app
 
 import (
+	"path/filepath"
 	"time"
 
 	"github.com/mobiledeck/mobiledeck/host/internal/auth"
 	"github.com/mobiledeck/mobiledeck/host/internal/config"
 	"github.com/mobiledeck/mobiledeck/host/internal/engine"
+	"github.com/mobiledeck/mobiledeck/host/internal/icons"
 	"github.com/mobiledeck/mobiledeck/host/internal/logging"
 	"github.com/mobiledeck/mobiledeck/host/internal/platform"
 	"github.com/mobiledeck/mobiledeck/host/internal/profiles"
@@ -34,6 +36,7 @@ type Host struct {
 	Profiles *profiles.Registry
 	Engine   *engine.Engine
 	Metrics  *telemetry.Collector
+	Icons    *icons.Client
 	Server   *server.Server
 	Lock     *store.Lock
 	Platform *platform.Platform
@@ -82,6 +85,16 @@ func Build(cfg config.Config, paths store.Paths, version string, console bool) (
 
 	plat := platform.New()
 	metrics := telemetry.New(plat, log)
+
+	// The icon cache. A failure here is not fatal: it only means image icons
+	// cannot be resolved, and every other feature works, so the host reports it
+	// and carries on with a nil client that resolves nothing.
+	iconClient, iconErr := icons.New(filepath.Join(paths.Root, "icons"), log)
+	if iconErr != nil {
+		log.Warn("the icon cache could not be opened; image icons will render as placeholders",
+			"error", iconErr)
+		iconClient = nil
+	}
 
 	// The engine is created before the registry so the registry can close over
 	// it, and the profile registry is created after the registry so it can
@@ -169,6 +182,7 @@ func Build(cfg config.Config, paths store.Paths, version string, console bool) (
 		Profiles:  profReg,
 		Engine:    eng,
 		Telemetry: metrics,
+		Icons:     iconClient,
 		TLS:       tlsMat,
 	})
 	if err != nil {
@@ -179,7 +193,8 @@ func Build(cfg config.Config, paths store.Paths, version string, console bool) (
 
 	h = &Host{
 		Config: cfg, Paths: paths, Log: logRes, Auth: authMgr,
-		Profiles: profReg, Engine: eng, Metrics: metrics, Server: srv, Platform: plat,
+		Profiles: profReg, Engine: eng, Metrics: metrics, Icons: iconClient,
+		Server: srv, Platform: plat,
 	}
 	return h, nil
 }

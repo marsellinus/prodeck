@@ -28,9 +28,24 @@ data class Profile(
     val settings: Settings = Settings(),
     @SerialName("root_page") val rootPage: String = "",
     val pages: List<Page> = emptyList(),
+    /**
+     * Inlined `image` icons, keyed by the file name a button's
+     * `icon.value` names (e.g. `terminal.png`). The value is a
+     * `data:image/png;base64,` URI.
+     *
+     * Protocol v1 has no icon-fetch message, so the only way the client can
+     * ever show a host-side PNG is for the host to inline it here. The map is
+     * optional and may hold only the icons the served pages actually
+     * reference: a missing entry is normal, not an error, and an older host
+     * that predates the field sends no map at all.
+     */
+    val icons: Map<String, String> = emptyMap(),
 ) {
     /** The page with this id, or null. */
     fun page(id: String): Page? = pages.firstOrNull { it.id == id }
+
+    /** The data URI for an `image` icon file name, or null when not inlined. */
+    fun iconDataUri(fileName: String): String? = icons[fileName]
 
     /** The root page, falling back to the first page for a malformed document. */
     fun rootPageOrFirst(): Page? = page(rootPage) ?: pages.firstOrNull()

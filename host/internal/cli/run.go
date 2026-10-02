@@ -14,16 +14,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mobiledeck/mobiledeck/host/internal/auth"
+	"github.com/mobiledeck/mobiledeck/host/internal/app"
 	"github.com/mobiledeck/mobiledeck/host/internal/config"
 	"github.com/mobiledeck/mobiledeck/host/internal/engine"
-	"github.com/mobiledeck/mobiledeck/host/internal/logging"
 	"github.com/mobiledeck/mobiledeck/host/internal/platform"
-	"github.com/mobiledeck/mobiledeck/host/internal/profiles"
-	"github.com/mobiledeck/mobiledeck/host/internal/server"
 	"github.com/mobiledeck/mobiledeck/host/internal/store"
-	"github.com/mobiledeck/mobiledeck/host/internal/telemetry"
-	"github.com/mobiledeck/mobiledeck/host/internal/tlsutil"
 )
 
 // runtimeState is what a running host publishes for the CLI to find it.
@@ -35,182 +30,6 @@ type runtimeState struct {
 	StartedAt  int64  `json:"started_at"`
 	Version    string `json:"version"`
 	ConfigDir  string `json:"config_dir"`
-}
-
-// host is the assembled running host, kept in one value so the assembly order
-// is visible in one place.
-type host struct {
-	cfg      config.Config
-	paths    store.Paths
-	log      *logging.SetupResult
-	auth     *auth.Manager
-	profiles *profiles.Registry
-	engine   *engine.Engine
-	metrics  *telemetry.Collector
-	srv      *server.Server
-	lock     *store.Lock
-	plat     *platform.Platform
-}
-
-// build assembles the host: config, logging, auth, profiles, engine, telemetry,
-// server. It returns a fully wired host that has not started listening yet.
-func build(cfg config.Config, paths store.Paths, version string, console bool) (*host, error) {
-	if err := paths.Ensure(); err != nil {
-		return nil, err
-	}
-
-	logRes, err := logging.Setup(logging.Options{
-		Level:      cfg.Logging.Level,
-		Format:     cfg.Logging.Format,
-		Console:    console && cfg.Logging.Console,
-		File:       paths.LogFile(),
-		MaxSizeMB:  cfg.Logging.MaxSizeMB,
-		MaxBackups: cfg.Logging.MaxBackups,
-		RingSize:   2000,
-	})
-	if err != nil {
-		return nil, err
-	}
-	log := logRes.Logger
-
-	audit, err := auth.OpenAudit(paths.Audit)
-	if err != nil {
-		logRes.Close()
-		return nil, err
-	}
-
-	authMgr, err := auth.NewManager(paths.Devices, audit, auth.Options{
-		PINLength:     cfg.Pairing.PINLength,
-		PINValidFor:   time.Duration(cfg.Pairing.PINTTLSeconds) * time.Second,
-		MaxAttempts:   cfg.Pairing.MaxAttempts,
-		AttemptWindow: 10 * time.Minute,
-		LockoutFor:    10 * time.Minute,
-		PerSecond:     cfg.RateLimit.PerSecond,
-		Burst:         cfg.RateLimit.Burst,
-	})
-	if err != nil {
-		logRes.Close()
-		return nil, err
-	}
-
-	plat := platform.New()
-	metrics := telemetry.New(plat, log)
-
-	// The engine is created before the registry so the registry can close over
-	// it, and the profile registry is created after the registry so it can
-	// validate against the real action set. That order is the whole coupling
-	// between "what a profile may reference" and "what this host can run".
-	var h *host
-	emit := func(ev engine.Event) {
-		if h != nil && h.srv != nil {
-			h.srv.EmitEvent(ev)
-		}
-	}
-
-	eng := engine.New(nil, plat, log, engine.Options{
-		MaxConcurrent:      cfg.Engine.MaxConcurrentActions,
-		QueueDepth:         cfg.Engine.QueueDepth,
-		DefaultTimeout:     cfg.DefaultActionTimeout(),
-		MaxMacroSteps:      cfg.Engine.MaxMacroSteps,
-		MaxMacroTimeout:    time.Duration(cfg.Engine.MaxMacroDurationMS) * time.Millisecond,
-		AllowAbsolutePaths: cfg.AllowAbsolutePaths,
-		ScriptRoots:        []string{cfg.ScriptsDir},
-	}, audit.Record, emit)
-
-	reg, err := engine.BuildRegistry(plat, cfg.HostName, version, eng)
-	if err != nil {
-		logRes.Close()
-		return nil, err
-	}
-	eng.SetRegistry(reg)
-
-	var profReg *profiles.Registry
-	profReg, err = profiles.New(profiles.Options{
-		Dir:     cfg.ProfilesDir,
-		Actions: profiles.BuildActionSet(reg),
-		Watch:   true,
-		OnChange: func(id, rev string) {
-			emit(engine.Event{Type: "event.profile.changed", Payload: map[string]string{"profile_id": id, "revision": rev}})
-		},
-	}, log)
-	if err != nil {
-		logRes.Close()
-		return nil, err
-	}
-
-	// Navigation actions reject a target that does not exist, so they need to
-	// see the loaded profiles. The lookups are installed here, after the
-	// registry exists, for the same reason SetProfileDir is.
-	eng.SetProfileDir(profReg.DirOf)
-	eng.SetProfileExists(func(id string) bool {
-		_, ok := profReg.Get(id)
-		return ok
-	})
-	eng.SetPageExists(func(profileID, pageID string) bool {
-		prof, ok := profReg.Get(profileID)
-		if !ok {
-			return false
-		}
-		_, ok = prof.Page(pageID)
-		return ok
-	})
-
-	// Cross-check telemetry bindings against the metrics this host produces, so
-	// a profile that reads gpu.usage on a machine without a GPU sampler fails at
-	// load rather than showing "--" forever.
-	for _, e := range profReg.List() {
-		if err := engine.ValidateButtonStates(e.Doc, metrics.Available()); err != nil {
-			log.Warn("profile uses a metric this host does not produce", "profile", e.Doc.ID, "error", err)
-		}
-	}
-
-	var tlsMat *tlsutil.Material
-	if cfg.TLS.Enabled {
-		dir := paths.TLSDir
-		tlsMat, err = tlsutil.LoadOrGenerate(dir, cfg.HostName, cfg.TLS.ValidDays)
-		if err != nil {
-			profReg.Close()
-			logRes.Close()
-			return nil, err
-		}
-	}
-
-	srv, err := server.New(server.Options{
-		Config:    cfg,
-		Log:       log,
-		Auth:      authMgr,
-		Profiles:  profReg,
-		Engine:    eng,
-		Telemetry: metrics,
-		TLS:       tlsMat,
-	})
-	if err != nil {
-		profReg.Close()
-		logRes.Close()
-		return nil, err
-	}
-
-	h = &host{
-		cfg: cfg, paths: paths, log: logRes, auth: authMgr,
-		profiles: profReg, engine: eng, metrics: metrics, srv: srv, plat: plat,
-	}
-	return h, nil
-}
-
-// close releases everything the host holds.
-func (h *host) close() {
-	if h.profiles != nil {
-		h.profiles.Close()
-	}
-	if h.metrics != nil {
-		h.metrics.Close()
-	}
-	if h.engine != nil {
-		h.engine.CancelAll()
-	}
-	if h.log != nil {
-		h.log.Close()
-	}
 }
 
 // cmdRun runs the host in the foreground until interrupted.
@@ -237,11 +56,11 @@ func cmdRun(env Env, args []string) int {
 	}
 	defer lock.Release()
 
-	h, err := build(cfg, paths, versionOf(env), true)
+	h, err := app.Build(cfg, paths, versionOf(env), true)
 	if err != nil {
 		return fail(env, err)
 	}
-	defer h.close()
+	defer h.Close()
 
 	ctx, wasSignalled, stopSignals := signalContext()
 	defer stopSignals()
@@ -249,7 +68,7 @@ func cmdRun(env Env, args []string) int {
 	// Bind before printing anything: with an ephemeral port the address is not
 	// known until the socket exists, and a banner that says "listening" with no
 	// port is worse than no banner.
-	if err := h.srv.Listen(); err != nil {
+	if err := h.Server.Listen(); err != nil {
 		fmt.Fprintf(env.Stderr, "mobiledeck: %v\n", err)
 		return ExitError
 	}
@@ -257,7 +76,7 @@ func cmdRun(env Env, args []string) int {
 	// Publish the runtime state so `mobiledeck status` and the other
 	// subcommands can reach this process, then remove it on the way out.
 	if err := writeRuntime(paths.RuntimeFile(), h, env); err != nil {
-		h.log.Logger.Warn("could not publish the runtime state; the CLI subcommands will not find this host", "error", err)
+		h.Log.Logger.Warn("could not publish the runtime state; the CLI subcommands will not find this host", "error", err)
 	}
 	defer os.Remove(paths.RuntimeFile())
 
@@ -265,11 +84,11 @@ func cmdRun(env Env, args []string) int {
 		printStartup(env, h)
 	}
 
-	h.log.Logger.Info("host started",
+	h.Log.Logger.Info("host started",
 		"version", versionOf(env), "os", runtime.GOOS, "config_dir", paths.Root,
 		"profiles_dir", cfg.ProfilesDir, "tls", cfg.TLS.Enabled)
 
-	if err := h.srv.Serve(ctx); err != nil {
+	if err := h.Server.Serve(ctx); err != nil {
 		if wasSignalled() {
 			return ExitOK
 		}
@@ -277,40 +96,40 @@ func cmdRun(env Env, args []string) int {
 		return ExitError
 	}
 	if wasSignalled() {
-		h.log.Logger.Info("stopped by signal")
+		h.Log.Logger.Info("stopped by signal")
 	}
 	return ExitOK
 }
 
 // printStartup writes the human-facing banner.
-func printStartup(env Env, h *host) {
+func printStartup(env Env, h *app.Host) {
 	fmt.Fprintf(env.Stdout, "MobileDeck %s\n", versionOf(env))
-	fmt.Fprintf(env.Stdout, "  host       %s (%s)\n", h.cfg.HostName, h.cfg.HostID)
-	fmt.Fprintf(env.Stdout, "  listening  %s\n", h.srv.Addr())
-	for _, addr := range h.srv.LocalAddresses() {
+	fmt.Fprintf(env.Stdout, "  host       %s (%s)\n", h.Config.HostName, h.Config.HostID)
+	fmt.Fprintf(env.Stdout, "  listening  %s\n", h.Server.Addr())
+	for _, addr := range h.Server.LocalAddresses() {
 		fmt.Fprintf(env.Stdout, "  reachable  %s\n", addr)
 	}
-	if h.cfg.TLS.Enabled {
-		fmt.Fprintf(env.Stdout, "  tls        on, fingerprint %s\n", h.srv.Fingerprint())
+	if h.Config.TLS.Enabled {
+		fmt.Fprintf(env.Stdout, "  tls        on, fingerprint %s\n", h.Server.Fingerprint())
 	} else {
 		fmt.Fprintf(env.Stdout, "  tls        off\n")
 	}
-	ids := h.profiles.IDs()
+	ids := h.Profiles.IDs()
 	fmt.Fprintf(env.Stdout, "  profiles   %d (%s)\n", len(ids), strings.Join(ids, ", "))
-	fmt.Fprintf(env.Stdout, "  config     %s\n", h.paths.Root)
+	fmt.Fprintf(env.Stdout, "  config     %s\n", h.Paths.Root)
 	fmt.Fprintf(env.Stdout, "\nRun `mobiledeck pair` in another terminal to add a phone.\n\n")
 }
 
 // writeRuntime publishes the state the CLI subcommands need.
-func writeRuntime(path string, h *host, env Env) error {
+func writeRuntime(path string, h *app.Host, env Env) error {
 	state := runtimeState{
 		PID:        os.Getpid(),
-		Addr:       h.srv.Addr(),
-		Port:       h.srv.Port(),
-		AdminToken: h.auth.AdminToken(),
+		Addr:       h.Server.Addr(),
+		Port:       h.Server.Port(),
+		AdminToken: h.Auth.AdminToken(),
 		StartedAt:  time.Now().UnixMilli(),
 		Version:    versionOf(env),
-		ConfigDir:  h.paths.Root,
+		ConfigDir:  h.Paths.Root,
 	}
 	b, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/mobiledeck/mobiledeck/host/internal/auth"
 	"github.com/mobiledeck/mobiledeck/host/internal/config"
 	"github.com/mobiledeck/mobiledeck/host/internal/engine"
+	"github.com/mobiledeck/mobiledeck/host/internal/icons"
 	"github.com/mobiledeck/mobiledeck/host/internal/platform"
 	"github.com/mobiledeck/mobiledeck/host/internal/profile"
 	"github.com/mobiledeck/mobiledeck/host/internal/profiles"
@@ -85,15 +86,16 @@ func (b *blockingInput) Key(ctx context.Context, k platform.Key, m platform.KeyM
 
 // testServer is a fully wired host on a loopback port, with a fake input layer.
 type testServer struct {
-	srv    *Server
-	input  platform.Input
-	auth   *auth.Manager
-	prof   *profiles.Registry
-	engine *engine.Engine
-	url    string // http(s)://host:port
-	wsURL  string // ws(s)://host:port/ws
-	dir    string
-	pin    string
+	srv      *Server
+	input    platform.Input
+	auth     *auth.Manager
+	prof     *profiles.Registry
+	engine   *engine.Engine
+	iconsDir string
+	url      string // http(s)://host:port
+	wsURL    string // ws(s)://host:port/ws
+	dir      string
+	pin      string
 }
 
 func newTestServer(t *testing.T, input platform.Input) *testServer {
@@ -143,6 +145,12 @@ func newTestServerPlatform(t *testing.T, plat *platform.Platform) *testServer {
 
 	metrics := telemetry.New(plat, log)
 
+	iconsDir := filepath.Join(dir, "icons")
+	iconClient, err := icons.New(iconsDir, log)
+	if err != nil {
+		t.Fatalf("icons.New: %v", err)
+	}
+
 	eng := engine.New(nil, plat, log, engine.Options{
 		MaxConcurrent:  4,
 		QueueDepth:     16,
@@ -185,6 +193,7 @@ func newTestServerPlatform(t *testing.T, plat *platform.Platform) *testServer {
 		Profiles:  profReg,
 		Engine:    eng,
 		Telemetry: metrics,
+		Icons:     iconClient,
 	})
 	if err != nil {
 		t.Fatalf("server.New: %v", err)
@@ -216,14 +225,15 @@ func newTestServerPlatform(t *testing.T, plat *platform.Platform) *testServer {
 	})
 
 	ts := &testServer{
-		srv:    srv,
-		input:  plat.Input,
-		auth:   mgr,
-		prof:   profReg,
-		engine: eng,
-		url:    "http://" + srv.Addr(),
-		wsURL:  "ws://" + srv.Addr() + "/ws",
-		dir:    dir,
+		srv:      srv,
+		input:    plat.Input,
+		auth:     mgr,
+		prof:     profReg,
+		engine:   eng,
+		iconsDir: iconsDir,
+		url:      "http://" + srv.Addr(),
+		wsURL:    "ws://" + srv.Addr() + "/ws",
+		dir:      dir,
 	}
 	return ts
 }
@@ -1386,3 +1396,113 @@ const testProfileJSON = `{
 
 var _ = profile.Load
 var _ = fmt.Sprint
+
+// TestProfileGetInlinesImageIcons covers the reason the `icons` map exists: a
+// button with `"icon": {"type":"image"}` must arrive with something to draw,
+// because protocol v1 has no message that fetches a file from the host.
+//
+// The map is computed when the document is served, not stored in the file, so
+// this is the only place the behaviour is observable.
+func TestProfileGetInlinesImageIcons(t *testing.T) {
+	ts := newTestServer(t, &recordingInput{})
+	token := ts.pair(t, "android-icons")
+	c := ts.connect(t, token, "android-icons")
+	if _, err := c.hello(); err != nil {
+		t.Fatalf("welcome: %v", err)
+	}
+
+	// Point a button at an image icon, and put a PNG in the icon cache by hand.
+	// The cache is the only thing the server reads: it never fetches while
+	// serving a profile, so that serving cannot block on the network.
+	code, raw := adminDo(t, ts, http.MethodGet, "/api/v1/admin/profiles/development/document", "")
+	if code != http.StatusOK {
+		t.Fatalf("GET document: %d %s", code, raw)
+	}
+	var doc profile.Profile
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	const iconFile = "test--icon.png"
+	doc.Pages[0].Buttons[0].Icon = profile.Icon{Type: "image", Value: iconFile}
+
+	pngBytes, err := icons.Rasterize([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 2L2 22h20z" fill="#4c8bf5"/></svg>`), 64)
+	if err != nil {
+		t.Fatalf("Rasterize: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(ts.iconsDir, iconFile), pngBytes, 0o600); err != nil {
+		t.Fatalf("writing the cache entry: %v", err)
+	}
+
+	body, _ := json.Marshal(doc)
+	if code, raw := adminDo(t, ts, http.MethodPut, "/api/v1/admin/profiles/development/document", string(body)); code != http.StatusOK {
+		t.Fatalf("PUT document: %d %s", code, raw)
+	}
+
+	// Ask over the protocol, as a phone does.
+	reply, err := c.request(proto.TypeProfileGet, proto.ProfileGetPayload{ProfileID: "development"}, 3*time.Second)
+	if err != nil {
+		t.Fatalf("profile.get: %v", err)
+	}
+	var got proto.ProfileGetResultPayload
+	if err := proto.DecodePayload(reply, &got); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+
+	obj, ok := got.Profile.(map[string]any)
+	if !ok {
+		t.Fatalf("the profile is %T, want an object", got.Profile)
+	}
+	iconsMap, ok := obj["icons"].(map[string]any)
+	if !ok {
+		t.Fatalf("the served document has no icons map: %v", obj["icons"])
+	}
+	uri, ok := iconsMap[iconFile].(string)
+	if !ok {
+		t.Fatalf("no entry for %q: %v", iconFile, iconsMap)
+	}
+	if !strings.HasPrefix(uri, "data:image/png;base64,") {
+		t.Fatalf("the entry is not a PNG data URI: %.40s", uri)
+	}
+	if len(uri) < 100 {
+		t.Errorf("the data URI is suspiciously short: %d bytes", len(uri))
+	}
+}
+
+// TestProfileGetLeavesMissingIconsOut checks the degradation path: an icon the
+// host does not have cached must not break the profile. One placeholder button is
+// a far better outcome than a deck that will not load.
+func TestProfileGetLeavesMissingIconsOut(t *testing.T) {
+	ts := newTestServer(t, &recordingInput{})
+	token := ts.pair(t, "android-icons-missing")
+	c := ts.connect(t, token, "android-icons-missing")
+	if _, err := c.hello(); err != nil {
+		t.Fatalf("welcome: %v", err)
+	}
+
+	code, raw := adminDo(t, ts, http.MethodGet, "/api/v1/admin/profiles/development/document", "")
+	if code != http.StatusOK {
+		t.Fatalf("GET document: %d %s", code, raw)
+	}
+	var doc profile.Profile
+	_ = json.Unmarshal(raw, &doc)
+	doc.Pages[0].Buttons[0].Icon = profile.Icon{Type: "image", Value: "never-fetched.png"}
+	body, _ := json.Marshal(doc)
+	if code, raw := adminDo(t, ts, http.MethodPut, "/api/v1/admin/profiles/development/document", string(body)); code != http.StatusOK {
+		t.Fatalf("PUT document: %d %s", code, raw)
+	}
+
+	reply, err := c.request(proto.TypeProfileGet, proto.ProfileGetPayload{ProfileID: "development"}, 3*time.Second)
+	if err != nil {
+		t.Fatalf("profile.get must still succeed: %v", err)
+	}
+	var got proto.ProfileGetResultPayload
+	if err := proto.DecodePayload(reply, &got); err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	obj := got.Profile.(map[string]any)
+	if m, ok := obj["icons"].(map[string]any); ok {
+		if _, present := m["never-fetched.png"]; present {
+			t.Error("an icon that is not cached was reported as resolved")
+		}
+	}
+}

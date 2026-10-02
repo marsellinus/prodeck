@@ -53,6 +53,7 @@ import dev.mobiledeck.data.ConnectionState
 import dev.mobiledeck.data.DeckStore
 import dev.mobiledeck.data.DeckUiState
 import dev.mobiledeck.data.Grid
+import dev.mobiledeck.data.Icon
 import dev.mobiledeck.data.Page
 import dev.mobiledeck.ui.theme.LocalDeckDimensions
 
@@ -445,6 +446,12 @@ private fun ButtonGrid(
             val override = state.buttonStates[key]
             val telemetry = telemetryFor(button, state)
 
+            // Only an `image` icon has a data URI to resolve; every other kind
+            // renders from its own value and must not pay for a lookup.
+            val iconUri = state.profile
+                ?.takeIf { button.icon?.type?.lowercase() == Icon.IMAGE }
+                ?.iconDataUri(button.icon?.value.orEmpty())
+
             DeckButton(
                 button = button,
                 override = override,
@@ -459,6 +466,7 @@ private fun ButtonGrid(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(tileHeight(grid)),
+                iconBitmap = rememberIconBitmap(iconUri),
             )
         }
     }

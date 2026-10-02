@@ -3,6 +3,7 @@ package dev.mobiledeck.ui
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -36,8 +37,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -103,6 +106,13 @@ fun DeckButton(
     onPress: (kind: String) -> Unit,
     onRelease: (heldMs: Long) -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * The decoded bitmap for an `icon.type == "image"` button, resolved by the
+     * grid from the profile's `icons` map. Passed in rather than read from a
+     * global so the tile stays testable and the grid owns the profile lookup.
+     * Null for every other icon kind, and for an image the host did not inline.
+     */
+    iconBitmap: ImageBitmap? = null,
 ) {
     val dimensions = LocalDeckDimensions.current
 
@@ -164,7 +174,7 @@ fun DeckButton(
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxSize(),
         ) {
-            ButtonIcon(icon = button.icon, label = button.label, tint = foreground)
+            ButtonIcon(icon = button.icon, label = button.label, tint = foreground, bitmap = iconBitmap)
 
             if (button.label.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
@@ -258,11 +268,12 @@ private suspend fun AwaitPointerEventScope.awaitRelease() {
 /**
  * The icon slot of a tile.
  *
- * See [materialIcon] for how each `icon.type` resolves and why `lucide` and
- * `image` degrade to a glyph.
+ * See [materialIcon] for how each `icon.type` resolves and why `lucide` degrades
+ * to a glyph, and [decodeDataUri] for the `image` path. [bitmap] is the already
+ * decoded `image` icon, or null when the host did not inline it.
  */
 @Composable
-private fun ButtonIcon(icon: ProfileIcon?, label: String, tint: Color) {
+private fun ButtonIcon(icon: ProfileIcon?, label: String, tint: Color, bitmap: ImageBitmap?) {
     val type = icon?.type?.lowercase() ?: ProfileIcon.TEXT
     val value = icon?.value.orEmpty()
     val iconColor = parseColor(icon?.color) ?: tint
@@ -283,9 +294,26 @@ private fun ButtonIcon(icon: ProfileIcon?, label: String, tint: Color) {
             }
         }
 
-        // Lucide has no Android artefact and v1 has no icon-fetch message, so
-        // both degrade to the label glyph. Documented in ui/Icons.kt.
-        ProfileIcon.LUCIDE, ProfileIcon.IMAGE -> Glyph(fallbackGlyph(label), iconColor)
+        ProfileIcon.IMAGE -> {
+            if (bitmap != null) {
+                // `Fit` rather than `Crop`: a 128x128 icon is square but the
+                // slot is not necessarily, and cropping a logo would hide the
+                // part the user recognises.
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(32.dp),
+                )
+            } else {
+                // The host did not inline this file, or the URI was malformed.
+                Glyph(fallbackGlyph(label), iconColor)
+            }
+        }
+
+        // Lucide has no Android artefact, so it degrades to the label glyph.
+        // Documented in ui/Icons.kt.
+        ProfileIcon.LUCIDE -> Glyph(fallbackGlyph(label), iconColor)
 
         ProfileIcon.EMOJI, ProfileIcon.TEXT -> Glyph(value.ifBlank { fallbackGlyph(label) }, iconColor)
 

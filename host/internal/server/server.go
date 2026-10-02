@@ -24,6 +24,7 @@ import (
 	"github.com/mobiledeck/mobiledeck/host/internal/auth"
 	"github.com/mobiledeck/mobiledeck/host/internal/config"
 	"github.com/mobiledeck/mobiledeck/host/internal/engine"
+	"github.com/mobiledeck/mobiledeck/host/internal/icons"
 	"github.com/mobiledeck/mobiledeck/host/internal/logging"
 	"github.com/mobiledeck/mobiledeck/host/internal/profiles"
 	"github.com/mobiledeck/mobiledeck/host/internal/proto"
@@ -42,6 +43,7 @@ type Server struct {
 	profiles *profiles.Registry
 	engine   *engine.Engine
 	metrics  *telemetry.Collector
+	icons    *icons.Client
 	tls      *tlsutil.Material
 
 	http   *http.Server
@@ -61,7 +63,11 @@ type Options struct {
 	Profiles  *profiles.Registry
 	Engine    *engine.Engine
 	Telemetry *telemetry.Collector
-	TLS       *tlsutil.Material
+	// Icons resolves the image icons a profile references into data URIs. It may
+	// be nil, in which case an image icon is simply left unresolved and the
+	// client draws its placeholder.
+	Icons *icons.Client
+	TLS   *tlsutil.Material
 }
 
 // New builds a server. It does not listen until Start is called.
@@ -89,6 +95,7 @@ func New(opts Options) (*Server, error) {
 		profiles: opts.Profiles,
 		engine:   opts.Engine,
 		metrics:  opts.Telemetry,
+		icons:    opts.Icons,
 		tls:      opts.TLS,
 		sessions: make(map[string]*Session),
 	}

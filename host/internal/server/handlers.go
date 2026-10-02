@@ -56,10 +56,22 @@ func (sess *Session) handleProfileGet(env proto.Envelope) {
 		return
 	}
 
+	// Resolve the image icons this document references into data URIs, so a
+	// button with `"icon": {"type":"image"}` has something to draw. Only the
+	// referenced files are inlined, and an icon that is not in the cache is
+	// simply left out: the client draws its placeholder rather than the profile
+	// failing to serve (docs/PROTOCOL.md §5).
+	//
+	// The document itself is copied first. Mutating entry.Doc would write the
+	// resolved icons into the shared registry entry and, worse, into the next
+	// save of that profile.
+	served := *entry.Doc
+	served.Icons = s.resolveIcons(&served)
+
 	// Marshal from the document rather than sending the file bytes: the
 	// defaults applied at load time must reach the client, so it never has to
 	// know what a missing field means.
-	raw, err := json.Marshal(entry.Doc)
+	raw, err := json.Marshal(&served)
 	if err != nil {
 		sess.fail(env, proto.CodeInternal, "could not encode profile %q", req.ProfileID)
 		return
@@ -431,4 +443,35 @@ func (sess *Session) activeProfileLocked() string {
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
 	return sess.activeProfile
+}
+
+// resolveIcons returns the data URIs for the image icons a profile references.
+//
+// It never fetches: it reads what is already in the icon cache, so serving a
+// profile cannot block on the network. Icons are downloaded when the user picks
+// them, which is the only moment a network round trip is acceptable.
+//
+// A missing icon is not an error. The profile is still perfectly usable with a
+// placeholder on that one button, and refusing to serve the whole deck because
+// one icon is absent would be a far worse failure.
+func (s *Server) resolveIcons(doc *profile.Profile) map[string]string {
+	if s.icons == nil {
+		return nil
+	}
+	files := doc.ImageIconFiles()
+	if len(files) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(files))
+	for _, name := range files {
+		if uri := s.icons.Resolve(name); uri != "" {
+			out[name] = uri
+		} else {
+			s.log.Debug("profile references an icon that is not cached", "profile", doc.ID, "icon", name)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
